@@ -9,7 +9,7 @@ Edit the `config.yaml` with your project details.
 
 - `Organization`
 - `Project`
-- `Iteration Name`, e.g. "Iteration 0" --> this will be used to form the Iteration Path together with the Project.
+- `Team`
 - `Personal Access Token (PAT)` from Azure DevOps with access to:
     - Work Item Read & Write
     - Project & Team access
@@ -24,4 +24,4 @@ python3 -m venv AzureSortBacklog
 source AzureSortBacklog/bin/activate
 ```
 
-Then install the required packages for the dependencies via PIP as required with: `python3 install -r requirements.txt`.
+Then install the required packages for the dependencies via PIP as required with: `pip install -r requirements.txt`.
