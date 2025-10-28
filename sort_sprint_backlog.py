@@ -106,6 +106,7 @@ class IterationSelectorGui(tk.Tk):
         x = (ws/2) - (w/2)
         y = (hs/2) - (h/2)
         self.geometry('%dx%d+%d+%d' % (w, h, x, y))
+        
         self.tk.mainloop()
 
     def sort_selected_iteration(self):

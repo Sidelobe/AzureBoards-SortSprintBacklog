@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['AzureBacklogSorter.icns'],
 )
 coll = COLLECT(
     exe,
@@ -44,7 +45,8 @@ coll = COLLECT(
 )
 app = BUNDLE(
     coll,
-    name='AzureBacklogSorter.app',
-    icon=None,
+    name='Azure Backlog Sorter.app',
+    version='1.0.0',
+    icon='AzureBacklogSorter.icns',
     bundle_identifier=None,
 )
