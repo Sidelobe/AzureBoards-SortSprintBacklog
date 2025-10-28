@@ -30,34 +30,36 @@ def main():
     # GUI
     iteration_paths = stackrank_sorter.get_iterations()
     current_iteration = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)[0]
-    iterationSelector = IterationSelector(stackrank_sorter.project, iteration_paths, current_iteration)
+    iteration_selector = IterationSelector(stackrank_sorter.project, iteration_paths, current_iteration)
 
-    if iterationSelector.selected_iteration is None:
+    if iteration_selector.selected_iteration is None:
         sys.exit(0)
 
     # =================
 
-    iteration_path = f"{stackrank_sorter.project}\\{iterationSelector.selected_iteration}"
+    iteration_path = f"{stackrank_sorter.project}\\{iteration_selector.selected_iteration}"
 
     # Get hierarchy as 'family tree' (includes grandparent's stack rank)
     work_item_ancestry_table = stackrank_sorter.get_work_item_ancestrytable(iteration_path)
     if work_item_ancestry_table is None:
-        print("Nothing to sort: Iteration contains no work items.")
-        sys.exit(0)
+        iteration_selector.feedback.config(text="Nothing to sort: Iteration contains no work items.")
+        iteration_selector.mainloop() # go back to GUI
 
-    stackrank_sorter.sort_work_item_table(work_item_ancestry_table)
+    else:
+        stackrank_sorter.sort_work_item_table(work_item_ancestry_table)
 
 
-    # DryRun: Pretty-print results instead of applying order
-    if args.dryrun:
-        stackrank_sorter.pretty_print_table(work_item_ancestry_table)
-        sys.exit(0)
+        # DryRun: Pretty-print results instead of applying order
+        if args.dryrun:
+            stackrank_sorter.pretty_print_table(work_item_ancestry_table)
+            sys.exit(0)
 
-    # Update Stack Rank to match new order
-    work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
-    stackrank_sorter.update_stack_rank(work_item_ids_ordered)
+        # Update Stack Rank to match new order
+        work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
+        stackrank_sorter.update_stack_rank(work_item_ids_ordered)
 
-    print("Backlog items reordered successfully.")
+        iteration_selector.feedback.config(text="Backlog items reordered successfully.")
+        iteration_selector.mainloop() # go back to GUI
 
 class IterationSelector(tk.Tk):
     def __init__(self, project, iteration_paths, current_iteration):
@@ -79,8 +81,11 @@ class IterationSelector(tk.Tk):
         self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.eval_selection)
         self.sort_button.pack()
 
+        self.feedback = tk.Label(self, text="")
+        self.feedback.pack(padx=5, pady=5, fill="x")
+        
         # Window size & position
-        w = 300
+        w = 350
         h = 100
         ws = self.winfo_screenwidth()
         hs = self.winfo_screenheight()
@@ -90,8 +95,8 @@ class IterationSelector(tk.Tk):
         self.tk.mainloop()
 
     def eval_selection(self):
-            self.selected_iteration = self.dropdown.get()
-            self.quit()
+        self.selected_iteration = self.dropdown.get()
+        self.quit()
 
 class StackRankSorter():
     def __init__(self, config):
