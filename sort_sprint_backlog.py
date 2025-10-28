@@ -48,6 +48,8 @@ def main():
     else:
         stackrank_sorter.sort_work_item_table(work_item_ancestry_table)
 
+        # DEBUG
+        #args.dryrun = True
 
         # DryRun: Pretty-print results instead of applying order
         if args.dryrun:
@@ -60,6 +62,33 @@ def main():
 
         iteration_selector.feedback.config(text="Backlog items reordered successfully.")
         iteration_selector.mainloop() # go back to GUI
+
+def sort_work_item_table(work_item_ancestry_table):
+        """
+        Sort a work item table based on certain criteria. 
+        TODO: make this generic, i.e. with "SortingCriterion_Type"
+        """
+        
+        # --> This is for a customized CMMI process
+        # Hierarchy: 
+        # 1. Issues
+        # 2. Bugs
+        # 3. Planning Items - order of (grand)parent Epic's (if applicable) stack rank
+        # 4. Any other work items (Requirements, Activities):
+        #          - grandparent Epic's stack rank
+        #          - then parent Feature priority
+        #          - then work item's priority  TODO: consider using item's stack rank instead
+
+        work_item_ancestry_table.sort(key=lambda x: (x.item_type == 'Issue', 
+                                                    x.item_type == 'Bug', 
+                                                    x.item_type == 'Planning Item' and x.grandparent_stackrank is not None and x.grandparent_stackrank, 
+                                                    x.grandparent_stackrank is not None and x.grandparent_stackrank,
+                                                    x.parent_prio is not None and x.parent_prio,
+                                                    x.item_prio is not None and x.item_prio),
+                                    reverse=False)
+
+        # for some reason, we need to reverse separately at the end, not in initial sort
+        work_item_ancestry_table.reverse()
 
 class IterationSelector(tk.Tk):
     def __init__(self, project, iteration_paths, current_iteration):
@@ -222,33 +251,6 @@ class StackRankSorter():
             work_item_ancestry_table.append(node)
 
         return (work_item_ancestry_table)
-
-    def sort_work_item_table(self, work_item_ancestry_table):
-        """
-        Sort a work item table based on certain criteria. 
-        TODO: make this generic, i.e. with "SortingCriterion_Type"
-        """
-        
-        # --> This is for a customized CMMI process
-        # Hierarchy: 
-        # 1. Issues
-        # 2. Bugs
-        # 3. Planning Items - order of (grand)parent Epic's (if applicable) stack rank
-        # 4. Any other work items (Requirements, Activities):
-        #          - grandparent Epic's stack rank
-        #          - then parent Feature priority
-        #          - then work item's priority  TODO: consider using item's stack rank instead
-
-        work_item_ancestry_table.sort(key=lambda x: (x.item_type == 'Issue', 
-                                                    x.item_type == 'Bug', 
-                                                    x.item_type == 'Planning Item' and x.grandparent_stackrank is not None and x.grandparent_stackrank, 
-                                                    x.grandparent_stackrank is not None and x.grandparent_stackrank,
-                                                    x.parent_prio is not None and x.parent_prio,
-                                                    x.item_prio is not None and x.item_prio),
-                                    reverse=False)
-
-        # for some reason, we need to reverse separately at the end, not in initial sort
-        work_item_ancestry_table.reverse()
 
     def update_stack_rank(self, work_item_ids_ordered):
         """
