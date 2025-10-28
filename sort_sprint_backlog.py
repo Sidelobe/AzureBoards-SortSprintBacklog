@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
 
     if args.dryrun:
-        print("dryrun on")
+        print("--dryrun specified!")
         
     with open('config.yml', 'r') as file:
         config = yaml.safe_load(file)
@@ -45,23 +45,41 @@ def main():
     # 4. Any other work items (Requirements, Activities):
     #          - grandparent Epic's stack rank
     #          - then parent Feature priority
-    #          - then work item's priority          TODO: consider using item's stack rank instead
+    #          - then work item's priority  TODO: consider using item's stack rank instead
 
-    print(json.dumps(work_item_ancestry_table, indent=2))
+    #print(json.dumps(work_item_ancestry_table, indent=2))
 
+    work_item_ancestry_table.sort(key=lambda x: (x.child_type == 'Issue', 
+                                                 x.child_type == 'Bug', 
+                                                 x.child_type == 'Planning Item' and x.grandparent_stackrank is not None and x.grandparent_stackrank, 
+                                                 x.grandparent_stackrank is not None and x.grandparent_stackrank,
+                                                 x.parent_prio is not None and x.parent_prio,
+                                                 x.child_prio is not None and x.child_prio),
+                                  reverse=False)
+
+    # for some reason, we need to reverse separately at the end, not in initial sort
+    work_item_ancestry_table.reverse()
+
+
+        sys.exit(0)
 
     # =====================================================================================
 
-    # Step 4: Update Stack Rank
+    # Step 4: Update Stack Rank to match new order
+    work_item_ids_ordered = [item.child for item in work_item_ancestry_table]
+    update_stack_rank(organization, encoded_pat, work_item_ids_ordered)
+
+    print("Backlog items reordered successfully.")
+
+
+def update_stack_rank(organization, encoded_pat, work_item_ids_ordered):
+    
     headers_patch = {
         "Content-Type": "application/json-patch+json",
         "Authorization": f"Basic {encoded_pat}"
     }
-    work_item_ids = [item.child for item in work_item_ancestry_table]
 
-    #sys.exit(0)
-
-    for i, id in enumerate(work_item_ids):
+    for i, id in enumerate(work_item_ids_ordered):
         update_url = f"https://dev.azure.com/{organization}/_apis/wit/workitems/{id}?api-version=7.0"
         patch_data = [
             {
@@ -74,12 +92,8 @@ def main():
         if (r.status_code != 200):
             print(r.status_code)
             print(r.text)
+            sys.exit(-1)
 
-
-    #details = requests.post(details_url, json=details_query, headers=headers).json()
-
-    #print(json.dumps(details, indent=2))
-    #print("Backlog items reordered successfully.")
 
 def get_work_item_ancestrytable(organization, project, iteration_path, encoded_pat):
     """
@@ -101,7 +115,6 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         WHERE [System.IterationPath] = '{iteration_path}'
         """
     }
-    # TODO: make work item types configurable
     response = requests.post(query_url, json=query, headers=headers_query)
     work_item_ids = [item["id"] for item in response.json()["workItems"]]
 
@@ -109,25 +122,30 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
     url = f"https://dev.azure.com/{organization}/_apis/wit/workitemsbatch?api-version=7.0"
     details_query = {
         "ids": work_item_ids,
-        "fields": ["System.Id", "System.Title", "System.Parent", "Microsoft.VSTS.Common.Priority"],
+        "fields": ["System.Id", "System.WorkItemType", "System.Title", "System.Parent", "Microsoft.VSTS.Common.Priority"],
         "expand": "Relations"
     }
     work_item_details = requests.post(url, json=details_query, headers=headers_query).json()
     
     # Step 3: Get parents and grandparents
-    AncestryInfoTable = namedtuple('AncestryInfoTable', 'child child_prio parent parent_prio grandparent grandparent_stackrank')
+    fields = ('child', 'child_type', 'child_prio', 'parent', 'parent_prio', 'grandparent', 'grandparent_stackrank')
+    AncestryInfoTable = namedtuple('AncestryInfoTable', fields, defaults=(None,) * len(fields))
     work_item_ancestry_table = []
 
     # TODO: make prio and stackrank field names configurable
 
     for i, item in enumerate(work_item_details['value']):
         child = item['id']
+        child_type = None
+        if 'System.WorkItemType' in item['fields']:
+            child_type = item['fields']['System.WorkItemType']
+
         child_prio = None
         if 'Microsoft.VSTS.Common.Priority' in item['fields']:
             child_prio = item['fields']['Microsoft.VSTS.Common.Priority']
 
         if 'System.Parent' not in item['fields']:
-            work_item_ancestry_table.append(AncestryInfoTable(child=child, child_prio=child_prio, parent=None, parent_prio=None, grandparent=None, grandparent_stackrank=None))
+            work_item_ancestry_table.append(AncestryInfoTable(child=child, child_type=child_type, child_prio=child_prio))
             continue # safely skip items without parent
 
         parent = item['fields']['System.Parent']
@@ -143,7 +161,7 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
             parent_prio = item_parent['fields']['Microsoft.VSTS.Common.Priority']
 
         if 'System.Parent' not in item_parent['fields']:
-            work_item_ancestry_table.append(AncestryInfoTable(child=child, child_prio=child_prio, parent=parent, parent_prio=parent_prio, grandparent=None, grandparent_stackrank=None))
+            work_item_ancestry_table.append(AncestryInfoTable(child=child, child_type=child_type, child_prio=child_prio, parent=parent, parent_prio=parent_prio))
             continue # safely skip items without parent
 
         grandparent = item_parent['fields']['System.Parent']
@@ -156,7 +174,7 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         item_grandparent = item_grandparent_details['value'][0] # only one parent queried
         grandparent_stack_rank = item_grandparent['fields']['Microsoft.VSTS.Common.StackRank']
         
-        node = AncestryInfoTable(child=child, child_prio=child_prio, parent=parent, parent_prio=parent_prio, grandparent=grandparent, grandparent_stackrank=grandparent_stack_rank)
+        node = AncestryInfoTable(child=child, child_type=child_type, child_prio=child_prio, parent=parent, parent_prio=parent_prio, grandparent=grandparent, grandparent_stackrank=grandparent_stack_rank)
         work_item_ancestry_table.append(node)
 
     return (work_item_ancestry_table)
