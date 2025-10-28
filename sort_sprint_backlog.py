@@ -10,6 +10,8 @@ import base64
 import json
 import yaml
 from collections import namedtuple
+import tkinter as tk
+from tkinter import ttk
 
 def main():
     parser = argparse.ArgumentParser(prog=None)
@@ -26,15 +28,29 @@ def main():
     # Configuration [read from file]
     organization = config['organization']
     project = config['project']
-    iteration_path = f"{project}\\" + config['iteration_name']
+    team = config['team']
     pat = config['pat']
 
     # Formatting
     encoded_pat = base64.b64encode(f":{pat}".encode()).decode()
-    
+
+    # GUI
+    iteration_paths = get_iterations(organization, project, team, encoded_pat)
+    current_iteration = get_iterations(organization, project, team, encoded_pat, getCurrentIterationOnly=True)[0]
+    iterationSelector = IterationSelector(project, iteration_paths, current_iteration)
+
+    if iterationSelector.selected_iteration is None:
+        sys.exit(0)
+    # =================
+
+    iteration_path = f"{project}\\{iterationSelector.selected_iteration}"
+
     # Get hierarchy as 'family tree' (includes grandparent's stack rank)
     work_item_ancestry_table = get_work_item_ancestrytable(organization, project, iteration_path, encoded_pat)
-    
+    if work_item_ancestry_table is None:
+        print("Nothing to sort: Iteration contains no work items.")
+        sys.exit(0)
+
     sort_work_item_table(work_item_ancestry_table)
 
 
@@ -49,6 +65,63 @@ def main():
 
     print("Backlog items reordered successfully.")
 
+class IterationSelector(tk.Tk):
+    def __init__(self, project, iteration_paths, current_iteration):
+        super().__init__()
+        
+        self.selected_iteration = None
+
+        self.title("Choose Iteration")
+
+        iteration_prefix = f"{project}\\"
+        iteration_paths = [item.removeprefix(iteration_prefix) for item in iteration_paths]
+
+        self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
+        self.dropdown.pack(padx=5, pady=5, fill="x")
+
+        current_iteration = current_iteration.removeprefix(iteration_prefix)
+        self.dropdown.set(current_iteration)
+
+        self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.eval_selection)
+        self.sort_button.pack()
+
+        # Window size
+        w = 300
+        h = 100
+
+        # get screen width and height
+        ws = self.winfo_screenwidth()
+        hs = self.winfo_screenheight()
+
+        x = (ws/2) - (w/2)
+        y = (hs/2) - (h/2)
+
+        self.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+
+        self.tk.mainloop()
+
+    def eval_selection(self):
+            self.selected_iteration = self.dropdown.get()
+            self.quit()
+
+def get_iterations(organization, project, team, encoded_pat, getCurrentIterationOnly=False):
+    """
+    Returns a list of all iterations, obtained through the REST API.
+    """
+
+    headers_query = {
+        "Content-Type": "application/json",
+        "Authorization": f"Basic {encoded_pat}"
+    }
+
+    # Get all available iterations
+    url = f"https://dev.azure.com/{organization}/{project}/{team}/_apis/work/teamsettings/iterations?$depth=3&api-version=7.1"
+    if getCurrentIterationOnly:
+        url += f"&$timeframe=current"
+    
+    response = requests.get(url, headers=headers_query)
+    return [item["path"] for item in response.json()['value']]
 
 def get_work_item_ancestrytable(organization, project, iteration_path, encoded_pat):
     """
@@ -73,6 +146,9 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
     response = requests.post(query_url, json=query, headers=headers_query)
     work_item_ids = [item["id"] for item in response.json()["workItems"]]
 
+    if not work_item_ids: 
+        return None # Iteration contains no work items
+    
     # Step 2: Get details including parent links and stack rank
     url = f"https://dev.azure.com/{organization}/_apis/wit/workitemsbatch?api-version=7.0"
     details_query = {
@@ -88,7 +164,7 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
     work_item_ancestry_table = []
 
     # TODO: make prio and stackrank field names configurable
-
+    
     for i, item in enumerate(work_item_details['value']):
         item_id = item['id']
         item_type = None
@@ -161,8 +237,6 @@ def sort_work_item_table(work_item_ancestry_table):
     #          - grandparent Epic's stack rank
     #          - then parent Feature priority
     #          - then work item's priority  TODO: consider using item's stack rank instead
-
-    #print(json.dumps(work_item_ancestry_table, indent=2))
 
     work_item_ancestry_table.sort(key=lambda x: (x.item_type == 'Issue', 
                                                  x.item_type == 'Bug', 
