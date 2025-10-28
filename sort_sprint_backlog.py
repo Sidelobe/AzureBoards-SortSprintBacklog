@@ -7,11 +7,14 @@ import sys # for sys.exit
 import argparse
 import requests
 import base64
-import json
 import yaml
 from collections import namedtuple
 import tkinter as tk
 from tkinter import ttk
+
+# Globals
+g_priority_field = ""
+g_stackrank_field =""
 
 def main():
     parser = argparse.ArgumentParser(prog=None)
@@ -31,6 +34,12 @@ def main():
     team = config['team']
     pat = config['pat']
 
+    # overwrite global field with values from config
+    global g_priority_field
+    global g_stackrank_field
+    g_priority_field = config['field_priority']
+    g_stackrank_field= config['field_stackrank']
+
     # Formatting
     encoded_pat = base64.b64encode(f":{pat}".encode()).decode()
 
@@ -41,6 +50,7 @@ def main():
 
     if iterationSelector.selected_iteration is None:
         sys.exit(0)
+
     # =================
 
     iteration_path = f"{project}\\{iterationSelector.selected_iteration}"
@@ -85,20 +95,14 @@ class IterationSelector(tk.Tk):
         self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.eval_selection)
         self.sort_button.pack()
 
-        # Window size
+        # Window size & position
         w = 300
         h = 100
-
-        # get screen width and height
         ws = self.winfo_screenwidth()
         hs = self.winfo_screenheight()
-
         x = (ws/2) - (w/2)
         y = (hs/2) - (h/2)
-
         self.geometry('%dx%d+%d+%d' % (w, h, x, y))
-
-
         self.tk.mainloop()
 
     def eval_selection(self):
@@ -153,7 +157,7 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
     url = f"https://dev.azure.com/{organization}/_apis/wit/workitemsbatch?api-version=7.0"
     details_query = {
         "ids": work_item_ids,
-        "fields": ["System.Id", "System.WorkItemType", "System.Title", "System.Parent", "Microsoft.VSTS.Common.Priority"],
+        "fields": ["System.Id", "System.WorkItemType", "System.Title", "System.Parent", g_priority_field],
         "expand": "Relations"
     }
     work_item_details = requests.post(url, json=details_query, headers=headers_query).json()
@@ -162,8 +166,6 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
     fields = ('item_id', 'item_title', 'item_type', 'item_prio', 'parent', 'parent_prio', 'grandparent', 'grandparent_title', 'grandparent_stackrank')
     AncestryInfoTable = namedtuple('AncestryInfoTable', fields, defaults=(None,) * len(fields))
     work_item_ancestry_table = []
-
-    # TODO: make prio and stackrank field names configurable
     
     for i, item in enumerate(work_item_details['value']):
         item_id = item['id']
@@ -176,8 +178,8 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
             item_title = item['fields']['System.Title']
 
         item_prio = None
-        if 'Microsoft.VSTS.Common.Priority' in item['fields']:
-            item_prio = item['fields']['Microsoft.VSTS.Common.Priority']
+        if g_priority_field in item['fields']:
+            item_prio = item['fields'][g_priority_field]
 
         if 'System.Parent' not in item['fields']:
             work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_title=item_title, item_type=item_type, item_prio=item_prio))
@@ -186,14 +188,14 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         parent = item['fields']['System.Parent']
         parent_query = {
             "ids": [parent],
-            "fields": ["System.Id", "System.Title", "System.Parent", "System.IterationPath", "Microsoft.VSTS.Common.Priority"],
+            "fields": ["System.Id", "System.Title", "System.Parent", "System.IterationPath", g_priority_field],
             "expand": "Relations"
         }
         item_parent_details = requests.post(url, json=parent_query, headers=headers_query).json()
         item_parent = item_parent_details['value'][0] # only one parent queried
         parent_prio = None
-        if 'Microsoft.VSTS.Common.Priority' in item_parent['fields']:
-            parent_prio = item_parent['fields']['Microsoft.VSTS.Common.Priority']
+        if g_priority_field in item_parent['fields']:
+            parent_prio = item_parent['fields'][g_priority_field]
 
         if 'System.Parent' not in item_parent['fields']:
             work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_title=item_title, item_type=item_type, item_prio=item_prio, 
@@ -203,7 +205,7 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         grandparent = item_parent['fields']['System.Parent']
         grandparent_query = {
             "ids": [grandparent],
-            "fields": ["System.Id", "System.Title", "System.IterationPath", "Microsoft.VSTS.Common.StackRank"],
+            "fields": ["System.Id", "System.Title", "System.IterationPath", g_stackrank_field],
             "expand": "Relations"
         }
         item_grandparent_details = requests.post(url, json=grandparent_query, headers=headers_query).json()
@@ -213,8 +215,8 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         if 'System.Title' in item_grandparent['fields']:
             grandparent_title = item_grandparent['fields']['System.Title']
         grandparent_stack_rank = None
-        if 'Microsoft.VSTS.Common.StackRank' in item_grandparent['fields']:
-            grandparent_stack_rank = item_grandparent['fields']['Microsoft.VSTS.Common.StackRank']
+        if g_stackrank_field in item_grandparent['fields']:
+            grandparent_stack_rank = item_grandparent['fields'][g_stackrank_field]
         
         node = AncestryInfoTable(item_id=item_id, item_type=item_type, item_title=item_title, item_prio=item_prio, parent=parent, parent_prio=parent_prio, 
                                  grandparent=grandparent, grandparent_title=grandparent_title, grandparent_stackrank=grandparent_stack_rank)
@@ -263,7 +265,7 @@ def update_stack_rank(organization, encoded_pat, work_item_ids_ordered):
         patch_data = [
             {
                 "op": "add",
-                "path": "/fields/Microsoft.VSTS.Common.StackRank",
+                "path": f"/fields/{g_stackrank_field}",
                 "value": 10000 + i  # or any ranking logic
             }
         ]

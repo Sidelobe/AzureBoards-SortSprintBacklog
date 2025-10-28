@@ -13,6 +13,8 @@ Edit the `config.yaml` with your project details.
 - `Personal Access Token (PAT)` from Azure DevOps with access to:
     - Work Item Read & Write
     - Project & Team access
+- `field_priority` default is `"Microsoft.VSTS.Common.Priority"`
+- `field_stackrank` default is `"Microsoft.VSTS.Common.StackRank"`
 
 ## Running in a virtual python environment
 Tested on macos, with python3 installed through `brew`
