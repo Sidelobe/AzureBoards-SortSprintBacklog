@@ -60,6 +60,39 @@ def main():
     # for some reason, we need to reverse separately at the end, not in initial sort
     work_item_ancestry_table.reverse()
 
+    epics_section_started = False
+
+    if args.dryrun:
+        print("Resulting stack rank:\n")
+        out = ""
+        for i, item in enumerate(work_item_ancestry_table):
+            if not epics_section_started and item.item_type in {"Requirement", "Activity"}:
+                out += "-" * 160 + "\n"
+                epics_section_started = True
+
+            out += "\t" + str(i)
+            out += "\t" + f"{item.item_type:<15}"
+            out += "\t" + f"{item.item_title:<65}"
+
+            if item.grandparent_title is not None: 
+                out += "\t"
+                if i > 1 and i < len(work_item_ancestry_table)-2:
+                    previous_epic = work_item_ancestry_table[i-1].grandparent_title
+                    next_epic = work_item_ancestry_table[i+1].grandparent_title
+                    if item.grandparent_title != previous_epic:
+                        out += "┌ " 
+                    elif item.grandparent_title != next_epic:
+                        out += "└ " 
+                    else:
+                        out += "│ "
+                elif i < len(work_item_ancestry_table)-1:  
+                    out += "└ "
+
+                out += f"{item.grandparent_title:<65}"
+
+            out += "\n"
+        
+        print(out)
 
         sys.exit(0)
 
@@ -128,7 +161,7 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
     work_item_details = requests.post(url, json=details_query, headers=headers_query).json()
     
     # Step 3: Get parents and grandparents
-    fields = ('item_id', 'item_type', 'item_prio', 'parent', 'parent_prio', 'grandparent', 'grandparent_stackrank')
+    fields = ('item_id', 'item_title', 'item_type', 'item_prio', 'parent', 'parent_prio', 'grandparent', 'grandparent_title', 'grandparent_stackrank')
     AncestryInfoTable = namedtuple('AncestryInfoTable', fields, defaults=(None,) * len(fields))
     work_item_ancestry_table = []
 
@@ -140,12 +173,16 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         if 'System.WorkItemType' in item['fields']:
             item_type = item['fields']['System.WorkItemType']
 
+        item_title = ""
+        if 'System.Title' in item['fields']:
+            item_title = item['fields']['System.Title']
+
         item_prio = None
         if 'Microsoft.VSTS.Common.Priority' in item['fields']:
             item_prio = item['fields']['Microsoft.VSTS.Common.Priority']
 
         if 'System.Parent' not in item['fields']:
-            work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_type=item_type, item_prio=item_prio))
+            work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_title=item_title, item_type=item_type, item_prio=item_prio))
             continue # safely skip items without parent
 
         parent = item['fields']['System.Parent']
@@ -161,7 +198,8 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
             parent_prio = item_parent['fields']['Microsoft.VSTS.Common.Priority']
 
         if 'System.Parent' not in item_parent['fields']:
-            work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_type=item_type, item_prio=item_prio, parent=parent, parent_prio=parent_prio))
+            work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_title=item_title, item_type=item_type, item_prio=item_prio, 
+                                                              parent=parent, parent_prio=parent_prio))
             continue # safely skip items without parent
 
         grandparent = item_parent['fields']['System.Parent']
@@ -172,9 +210,16 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         }
         item_grandparent_details = requests.post(url, json=grandparent_query, headers=headers_query).json()
         item_grandparent = item_grandparent_details['value'][0] # only one parent queried
-        grandparent_stack_rank = item_grandparent['fields']['Microsoft.VSTS.Common.StackRank']
+
+        grandparent_title = ""
+        if 'System.Title' in item_grandparent['fields']:
+            grandparent_title = item_grandparent['fields']['System.Title']
+        grandparent_stack_rank = None
+        if 'Microsoft.VSTS.Common.StackRank' in item_grandparent['fields']:
+            grandparent_stack_rank = item_grandparent['fields']['Microsoft.VSTS.Common.StackRank']
         
-        node = AncestryInfoTable(item_id=item_id, item_type=item_type, item_prio=item_prio, parent=parent, parent_prio=parent_prio, grandparent=grandparent, grandparent_stackrank=grandparent_stack_rank)
+        node = AncestryInfoTable(item_id=item_id, item_type=item_type, item_title=item_title, item_prio=item_prio, parent=parent, parent_prio=parent_prio, 
+                                 grandparent=grandparent, grandparent_title=grandparent_title, grandparent_stackrank=grandparent_stack_rank)
         work_item_ancestry_table.append(node)
 
     return (work_item_ancestry_table)
