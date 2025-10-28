@@ -13,16 +13,17 @@ from collections import namedtuple
 
 def main():
     parser = argparse.ArgumentParser(prog=None)
+    parser.add_argument('config', help='Configuration file that contains c')
     parser.add_argument('--dryrun', action='store_true', help='Prints resulting order only, without making any modifications')
     args = parser.parse_args()
 
     if args.dryrun:
         print("--dryrun specified!")
-        
-    with open('config.yml', 'r') as file:
+
+    with open(args.config, 'r') as file:
         config = yaml.safe_load(file)
 
-    # Configuration
+    # Configuration [read from file]
     organization = config['organization']
     project = config['project']
     iteration_path = f"{project}\\" + config['iteration_name']
@@ -106,7 +107,9 @@ def main():
 
 
 def update_stack_rank(organization, encoded_pat, work_item_ids_ordered):
-    
+    """
+    Update the stack rank of the give work items so they reflect the given order
+    """
     headers_patch = {
         "Content-Type": "application/json-patch+json",
         "Authorization": f"Basic {encoded_pat}"

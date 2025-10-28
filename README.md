@@ -5,7 +5,14 @@ Sorts the work items on the Sprint Board/Backlog based on certain criteria.
 Hosted at: [https://github.com/Sidelobe/AzureBoards-SortSprintBacklog](https://github.com/Sidelobe/AzureBoards-SortSprintBacklog)
 
 ## Configuration
-Edit the `config.yaml`
+Edit the `config.yaml` with your project details.
+
+- `Organization`
+- `Project`
+- `Iteration Name`, e.g. "Iteration 0" --> this will be used to form the Iteration Path together with the Project.
+- `Personal Access Token (PAT)` from Azure DevOps with access to:
+    - Work Item Read & Write
+    - Project & Team access
 
 ## Running in a virtual python environment
 Tested on macos, with python3 installed through `brew`
