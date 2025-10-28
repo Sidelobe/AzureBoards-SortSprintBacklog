@@ -99,11 +99,6 @@ def get_work_item_ancestrytable(organization, project, iteration_path, encoded_p
         SELECT [System.Id]
         FROM WorkItems
         WHERE [System.IterationPath] = '{iteration_path}'
-            AND ([System.WorkItemType] = 'Requirement'
-                OR [System.WorkItemType] = 'Activity'
-                OR [System.WorkItemType] = 'Planning Item'
-                OR [System.WorkItemType] = 'Issue'
-                OR [System.WorkItemType] = 'Bug')
         """
     }
     # TODO: make work item types configurable
