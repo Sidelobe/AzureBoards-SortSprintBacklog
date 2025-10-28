@@ -4,6 +4,7 @@ Python 3.x script to sort the Azure Sprint Backlog based on some criteria
 """
 
 import sys # for sys.exit
+import os
 import argparse
 import requests
 import base64
@@ -13,10 +14,24 @@ import tkinter as tk
 from tkinter import ttk
 
 def main():
+    if getattr(sys, 'frozen', False):
+        # If the application is run as a bundle, the PyInstaller bootloader
+        # extends the sys module by a flag frozen=True and sets the app 
+        # path into variable _MEIPASS'.
+        application_path = sys._MEIPASS
+    else:
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+
     parser = argparse.ArgumentParser(prog=None)
-    parser.add_argument('config', help='Configuration file that contains c')
+    parser.add_argument('--config', help='Configuration file that contains credentials and paths to access Azure Boards')
     parser.add_argument('--dryrun', action='store_true', help='Prints resulting order only, without making any modifications')
     args = parser.parse_args()
+
+    if not args.config:
+        print("No config file specified, trying default [config.yml]")
+        print("(Application path is ", application_path, " looking one directory above)")
+        args.config = f"{application_path}/../config.yml"
 
     if args.dryrun:
         print("--dryrun specified!")

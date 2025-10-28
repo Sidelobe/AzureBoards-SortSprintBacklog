@@ -22,10 +22,17 @@ Tested on macos, with python3 installed through `brew`
 Create a virtual environment e.g. 'RaindropTest' and activate it:
 
 ```bash
-python3 -m venv AzureSortBacklog
+python -m venv AzureSortBacklog
 source AzureSortBacklog/bin/activate
 ```
 
 Then install the required packages for the dependencies via PIP as required with: `pip install -r requirements.txt`.
 
 NOTE: This script uses `tkinter`, which is installed on OS level, not through PIP. On macos, this can be installed with brew: `brew install python-tk`
+
+
+## Packaging into a Standalone Application (optional)
+
+1. First, install `pyinstaller` in the virtual environment: `pip install pyinstaller`.
+1. Then, run `pyinstaller --name="AzureBacklogSorter" --windowed sort_sprint_backlog.py`, which should produce an app (when running on macos) in the `dist` folder.
+1. Copy your `config.yml` file into the 'Contents' folder in the .app
