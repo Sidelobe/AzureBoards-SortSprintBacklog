@@ -27,3 +27,5 @@ source AzureSortBacklog/bin/activate
 ```
 
 Then install the required packages for the dependencies via PIP as required with: `pip install -r requirements.txt`.
+
+NOTE: This script uses `tkinter`, which is installed on OS level, not through PIP. On macos, this can be installed with brew: `brew install python-tk`
