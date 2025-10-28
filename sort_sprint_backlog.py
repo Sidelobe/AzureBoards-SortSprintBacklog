@@ -27,41 +27,8 @@ def main():
     # Sorter
     stackrank_sorter = StackRankSorter(config)
 
-    # GUI
-    iteration_paths = stackrank_sorter.get_iterations()
-    current_iteration = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)[0]
-    iteration_selector = IterationSelector(stackrank_sorter.project, iteration_paths, current_iteration)
-
-    if iteration_selector.selected_iteration is None:
-        sys.exit(0)
-
-    # =================
-
-    iteration_path = f"{stackrank_sorter.project}\\{iteration_selector.selected_iteration}"
-
-    # Get hierarchy as 'family tree' (includes grandparent's stack rank)
-    work_item_ancestry_table = stackrank_sorter.get_work_item_ancestrytable(iteration_path)
-    if work_item_ancestry_table is None:
-        iteration_selector.feedback.config(text="Nothing to sort: Iteration contains no work items.")
-        iteration_selector.mainloop() # go back to GUI
-
-    else:
-        stackrank_sorter.sort_work_item_table(work_item_ancestry_table)
-
-        # DEBUG
-        #args.dryrun = True
-
-        # DryRun: Pretty-print results instead of applying order
-        if args.dryrun:
-            stackrank_sorter.pretty_print_table(work_item_ancestry_table)
-            sys.exit(0)
-
-        # Update Stack Rank to match new order
-        work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
-        stackrank_sorter.update_stack_rank(work_item_ids_ordered)
-
-        iteration_selector.feedback.config(text="Backlog items reordered successfully.")
-        iteration_selector.mainloop() # go back to GUI
+    # Start GUI
+    iteration_selector = IterationSelectorGui(stackrank_sorter, args.dryrun)
 
 def sort_work_item_table(work_item_ancestry_table):
         """
@@ -90,24 +57,27 @@ def sort_work_item_table(work_item_ancestry_table):
         # for some reason, we need to reverse separately at the end, not in initial sort
         work_item_ancestry_table.reverse()
 
-class IterationSelector(tk.Tk):
-    def __init__(self, project, iteration_paths, current_iteration):
+class IterationSelectorGui(tk.Tk):
+    def __init__(self, stackrank_sorter, dryRun):
         super().__init__()
         
-        self.selected_iteration = None
+        self.stackrank_sorter = stackrank_sorter
+        self.dryRun = dryRun
 
         self.title("Choose Iteration")
 
-        iteration_prefix = f"{project}\\"
-        iteration_paths = [item.removeprefix(iteration_prefix) for item in iteration_paths]
+        # Configure DropDown: Get Iterations and 'Current iteration' (depends on date)
+        self.iteration_prefix = f"{stackrank_sorter.project}\\"
+        iteration_paths = stackrank_sorter.get_iterations()
+        iteration_paths = [item.removeprefix(self.iteration_prefix) for item in iteration_paths]
+        current_iteration = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)[0]
+        current_iteration = current_iteration.removeprefix(self.iteration_prefix)
 
         self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
         self.dropdown.pack(padx=5, pady=5, fill="x")
-
-        current_iteration = current_iteration.removeprefix(iteration_prefix)
         self.dropdown.set(current_iteration)
 
-        self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.eval_selection)
+        self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.sort_selected_iteration)
         self.sort_button.pack()
 
         self.feedback = tk.Label(self, text="")
@@ -123,9 +93,11 @@ class IterationSelector(tk.Tk):
         self.geometry('%dx%d+%d+%d' % (w, h, x, y))
         self.tk.mainloop()
 
-    def eval_selection(self):
-        self.selected_iteration = self.dropdown.get()
-        self.quit()
+    def sort_selected_iteration(self):
+        selected_iteration = self.dropdown.get()
+        selected_iteration_path = f"{self.iteration_prefix}{selected_iteration}"
+        self.stackrank_sorter.sort_backlog(selected_iteration_path, self.dryRun)
+        self.feedback.config(text=self.stackrank_sorter.resultText)
 
 class StackRankSorter():
     def __init__(self, config):
@@ -136,6 +108,26 @@ class StackRankSorter():
         self.encoded_pat = base64.b64encode(f":{pat}".encode()).decode()
         self.priority_field = config['field_priority']
         self.stackrank_field= config['field_stackrank']
+        self.resultText = "" # to give feedback to user
+
+    def sort_backlog(self, iteration_path, dryRun=False):
+        # Get hierarchy as 'family tree' (includes grandparent's stack rank)
+        work_item_ancestry_table = self.get_work_item_ancestrytable(iteration_path)
+        if work_item_ancestry_table is None:
+            self.resultText = "Nothing to sort: Iteration contains no work items."
+        else:
+            sort_work_item_table(work_item_ancestry_table)
+
+            # DryRun: Pretty-print results instead of applying order
+            if dryRun:
+                StackRankSorter.pretty_print_table(work_item_ancestry_table)
+                return
+            
+            # Update Stack Rank to match new order
+            work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
+            self.update_stack_rank(work_item_ids_ordered)
+
+            self.resultText = "Backlog items reordered successfully."
 
     def get_iterations(self, getCurrentIterationOnly=False):
         """
@@ -276,7 +268,8 @@ class StackRankSorter():
                 print(r.text)
                 sys.exit(-1)
 
-    def pretty_print_table(self, work_item_ancestry_table):
+    @staticmethod
+    def pretty_print_table(work_item_ancestry_table):
         """
         Pretty-Print the work item table, showing the corresponding grandparent epics
         """
