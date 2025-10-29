@@ -10,9 +10,9 @@ Edit the `config.yaml` with your project details.
 - `Organization`
 - `Project`
 - `Team`
-- `Personal Access Token (PAT)` from Azure DevOps with access to:
-    - Work Item Read & Write
-    - Project & Team access
+- `Personal Access Token (PAT)` from Azure DevOps with these permissions:
+    - Work Item:  Read & Write
+    - Project & Team:  Read & Write
 - `field_priority` default is `"Microsoft.VSTS.Common.Priority"`
 - `field_stackrank` default is `"Microsoft.VSTS.Common.StackRank"`
 
@@ -33,9 +33,16 @@ NOTE: This script uses `tkinter`, which is installed on OS level, not through PI
 
 ## Packaging into a Standalone Application (optional)
 
-1. First, install `pyinstaller` in the virtual environment: `pip install pyinstaller`.
+1. First, install `pyinstaller` in the virtual environment: `pip install pyinstaller`
+
 1. Then, run: `pyinstaller AzureBacklogSorter.spec sort_sprint_backlog.py`, which should produce an app (when running on macos) in the `dist` folder.
-1. Copy your `config.yml` file into the 'Contents' folder in the .app
+
+1. (optional) install `brew install create-dmg` to create a `.dmg`.
+
+For convenience, the bash script `build_and_package.sh` can be used to combine all of the above steps.
+   
+
+
 
 Icon used:
 <a href="https://www.flaticon.com/free-icons/ascending" title="ascending icons">Ascending icons created by Infinite Dendrogram - Flaticon</a>
