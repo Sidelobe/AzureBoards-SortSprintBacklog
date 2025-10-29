@@ -30,8 +30,8 @@ def main():
 
     if not args.config:
         print("No config file specified, trying default [config.yml]")
-        print("(Application path is ", application_path, " looking one directory above)")
-        args.config = f"{application_path}/../config.yml"
+        print("(Application path is ", application_path, " looking for config file in directory ../Resources)")
+        args.config = f"{application_path}/../Resources/config.yml"
 
     if args.dryrun:
         print("--dryrun specified!")

@@ -5,7 +5,7 @@ a = Analysis(
     ['sort_sprint_backlog.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[ ('config.yml', '.') ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
