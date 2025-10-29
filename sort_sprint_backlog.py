@@ -12,6 +12,7 @@ import yaml
 from collections import namedtuple
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 
 def main():
     if getattr(sys, 'frozen', False):
@@ -38,6 +39,8 @@ def main():
 
     with open(args.config, 'r') as file:
         config = yaml.safe_load(file)
+
+    check_config(config)
 
     # Sorter
     stackrank_sorter = StackRankSorter(config)
@@ -320,6 +323,36 @@ class StackRankSorter():
             out += "\n"
             
         print(out)
+
+def check_config(config):
+    class ErrorBox(tk.Tk):
+        def __init__(self):
+            super().__init__()
+
+        def showError(self, title, msg):
+            tk.messagebox.showerror(title, msg)
+            self.update()
+
+    error_msgs = ""
+    if not config['organization']:
+        error_msgs += "'organization', "
+    if not config['project']:
+        error_msgs += "'project', "  
+    if not config['team']:
+        error_msgs += "'team', "
+    if not config['pat']:
+        error_msgs += "'pat', "
+    if not config['field_priority']:
+        error_msgs += "'field_priority', "
+    if not config['field_stackrank']:
+        error_msgs += "'field_stackrank', "
+
+    if error_msgs: 
+        error_msgs = error_msgs.removesuffix(", ")
+        errorBox = ErrorBox()
+        errorBox.showError("Config Error", f"The values [{error_msgs}] have not been specified in the config file!")
+        errorBox.quit()
+        sys.exit(0)
 
 
 if __name__ == "__main__":
