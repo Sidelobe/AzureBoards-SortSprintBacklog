@@ -92,6 +92,7 @@ class IterationSelectorGui(tk.Tk):
         current_iteration = current_iteration.removeprefix(self.iteration_prefix)
 
         self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
+        self.dropdown.bind('<<ComboboxSelected>>', self.select_dropdown)
         self.dropdown.pack(padx=5, pady=5, fill="x")
         self.dropdown.set(current_iteration)
 
@@ -113,10 +114,17 @@ class IterationSelectorGui(tk.Tk):
         self.tk.mainloop()
 
     def sort_selected_iteration(self):
+        self.feedback.config(text="Sorting...")
+        self.feedback.update()
         selected_iteration = self.dropdown.get()
         selected_iteration_path = f"{self.iteration_prefix}{selected_iteration}"
         self.stackrank_sorter.sort_backlog(selected_iteration_path, self.dryRun)
         self.feedback.config(text=self.stackrank_sorter.resultText)
+    
+    def select_dropdown(self, choice):
+        self.feedback.config(text="")
+        return "break"
+
 
 class StackRankSorter():
     def __init__(self, config):
