@@ -8,6 +8,7 @@ import os
 import argparse
 import requests
 import base64
+import json
 import yaml
 from collections import namedtuple
 import tkinter as tk
@@ -84,12 +85,21 @@ class IterationSelectorGui(tk.Tk):
 
         self.title("Choose Iteration")
 
+        self.feedback = tk.Label(self, text="")
+
         # Configure DropDown: Get Iterations and 'Current iteration' (depends on date)
         self.iteration_prefix = f"{stackrank_sorter.project}\\"
         iteration_paths = stackrank_sorter.get_iterations()
-        iteration_paths = [item.removeprefix(self.iteration_prefix) for item in iteration_paths]
-        current_iteration = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)[0]
-        current_iteration = current_iteration.removeprefix(self.iteration_prefix)
+        if iteration_paths is None:
+            self.resultText = "Nothing to sort: Iteration contains no work items."
+            self.feedback.config(text=self.stackrank_sorter.resultText)
+            self.feedback.update()
+            iteration_paths = []
+            current_iteration = ""
+        else:
+            iteration_paths = [item.removeprefix(self.iteration_prefix) for item in iteration_paths]
+            current_iteration = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)[0]
+            current_iteration = current_iteration.removeprefix(self.iteration_prefix)
 
         self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
         self.dropdown.bind('<<ComboboxSelected>>', self.select_dropdown)
@@ -98,10 +108,9 @@ class IterationSelectorGui(tk.Tk):
 
         self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.sort_selected_iteration)
         self.sort_button.pack()
-
-        self.feedback = tk.Label(self, text="")
-        self.feedback.pack(padx=5, pady=5, fill="x")
         
+        self.feedback.pack(padx=5, pady=5, fill="x")
+
         # Window size & position
         w = 350
         h = 100
@@ -172,7 +181,17 @@ class StackRankSorter():
             url += f"&$timeframe=current"
         
         response = requests.get(url, headers=headers_query)
-        return [item["path"] for item in response.json()['value']]
+        response_json = response.json()
+        if response_json['count'] == 0:
+            self.resultText = "No iterations found"
+            return None
+
+        if not ('value' in response_json):
+            print("Could not read value from response... ")
+            print(json.dumps(response_json, indent=2))
+            return None
+
+        return [item["path"] for item in response_json['value']]
 
     def get_work_item_ancestrytable(self, iteration_path):
         """
