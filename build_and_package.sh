@@ -2,6 +2,7 @@
 
 pyinstaller --noconfirm AzureBacklogSorter.spec sort_sprint_backlog.py
 
+identity=" MY SIGNING IDENTITY"
 app_name="Azure Backlog Sorter"
 app_filename="${app_name}.app"
 
@@ -21,3 +22,6 @@ create-dmg \
   --app-drop-link 425 120 \
   "dist/${app_name}.dmg" \
   "dist/dmg/"
+
+
+  codesign -s ${identity} "dist/${app_name}.dmg"
