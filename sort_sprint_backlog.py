@@ -86,9 +86,12 @@ class IterationSelectorGui(tk.Tk):
         self.stackrank_sorter = stackrank_sorter
         self.dryRun = dryRun
 
-        self.title("Choose Iteration")
+        self.title("Choose Iteration Backlog to sort")
 
+        self.labelNumEpics = tk.Label(self, text="")
         self.feedback = tk.Label(self, text="")
+
+        self.labelNumEpics.pack(padx=5, pady=5, fill="x")
 
         # Configure DropDown: Get Iterations and 'Current iteration' (depends on date)
         self.iteration_prefix = f"{stackrank_sorter.project}\\"
@@ -119,7 +122,7 @@ class IterationSelectorGui(tk.Tk):
 
         # Window size & position
         w = 350
-        h = 100
+        h = 130
         ws = self.winfo_screenwidth()
         hs = self.winfo_screenheight()
         x = (ws/2) - (w/2)
@@ -131,15 +134,21 @@ class IterationSelectorGui(tk.Tk):
     def sort_selected_iteration(self):
         self.feedback.config(text="Sorting...")
         self.feedback.update()
-        selected_iteration = self.dropdown.get()
-        selected_iteration_path = f"{self.iteration_prefix}{selected_iteration}"
+        selected_iteration_path = self.get_selected_iteration_path()
         self.stackrank_sorter.sort_backlog(selected_iteration_path, self.dryRun)
-        self.feedback.config(text=self.stackrank_sorter.resultText)
+
+        epic_count_txt = f"Epics: {self.stackrank_sorter.result_num_epics}, Features: {self.stackrank_sorter.result_num_features}"
+        self.labelNumEpics.config(text=epic_count_txt)
+        self.feedback.config(text=self.stackrank_sorter.result_text)
     
     def select_dropdown(self, choice):
+        self.labelNumEpics.config(text="")
         self.feedback.config(text="")
         return "break"
 
+    def get_selected_iteration_path(self):
+        selected_iteration = self.dropdown.get()
+        return f"{self.iteration_prefix}{selected_iteration}"
 
 class StackRankSorter():
     def __init__(self, config):
@@ -150,13 +159,19 @@ class StackRankSorter():
         self.encoded_pat = base64.b64encode(f":{pat}".encode()).decode()
         self.priority_field = config['field_priority']
         self.stackrank_field= config['field_stackrank']
-        self.resultText = "" # to give feedback to user
+        self.result_text = "" # to give feedback to user
+        self.result_num_epics = None
+        self.result_num_features = None
 
     def sort_backlog(self, iteration_path, dryRun=False):
+        self.result_text = None
+        self.result_num_epics = None
+        self.result_num_features = None
+
         # Get hierarchy as 'family tree' (includes grandparent's stack rank)
         work_item_ancestry_table = self.get_work_item_ancestrytable(iteration_path)
         if work_item_ancestry_table is None:
-            self.resultText = "Nothing to sort: Iteration contains no work items."
+            self.result_text = "Nothing to sort: Iteration contains no work items."
         else:
             sort_work_item_table(work_item_ancestry_table)
 
@@ -169,7 +184,12 @@ class StackRankSorter():
             work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
             self.update_stack_rank(work_item_ids_ordered)
 
-            self.resultText = "Backlog items reordered successfully."
+            # Gather number of Epics and Features in Iteration
+            num_epics_features = StackRankSorter.get_num_epics_features(work_item_ancestry_table)
+            self.result_num_epics = num_epics_features[0]
+            self.result_num_features = num_epics_features[1]
+
+            self.result_text = "Backlog items reordered successfully."
 
     def get_iterations(self, getCurrentIterationOnly=False):
         """
@@ -188,12 +208,12 @@ class StackRankSorter():
         
         response = requests.get(url, headers=headers_query)
         if response.status_code != 200:
-            self.resultText = f"Connection problem - returned {response.status_code} ({response.reason})" 
+            self.result_text = f"Connection problem - returned {response.status_code} ({response.reason})" 
             return None
 
         response_json = response.json()
         if response_json['count'] == 0:
-            self.resultText = "No iterations found"
+            self.result_text = "No iterations found"
             return None
 
         if not ('value' in response_json):
@@ -323,6 +343,20 @@ class StackRankSorter():
                 print(r.status_code)
                 print(r.text)
                 sys.exit(-1)
+
+    @staticmethod
+    def get_num_epics_features(work_item_ancestry_table):
+        if work_item_ancestry_table is None:
+            return ["-", "-"]
+        
+        epics = [item.grandparent for item in work_item_ancestry_table]
+        features = [item.parent for item in work_item_ancestry_table]
+        
+        # Remove 'None' entries 
+        epics = [x for x in epics if x is not None]
+        features = [x for x in features if x is not None]
+
+        return [len(set(epics)), len(set(features))]
 
     @staticmethod
     def pretty_print_table(work_item_ancestry_table):
