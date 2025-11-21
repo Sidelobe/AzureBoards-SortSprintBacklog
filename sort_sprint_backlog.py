@@ -87,17 +87,22 @@ class IterationSelectorGui(tk.Tk):
         self.dryRun = dryRun
 
         self.title("Choose Iteration Backlog to sort")
-
-        self.labelNumEpics = tk.Label(self, text="")
+        
         self.feedback = tk.Label(self, text="")
-
-        self.labelNumEpics.pack(padx=5, pady=5, fill="x")
+        
+        # use a frame for the two labels
+        frame = tk.Frame(self)
+        frame.pack()
+        self.labelNumEpics =    tk.Label(frame, text="", font=('TkDefaultFont', 14), fg="orange")
+        self.labelNumFeatures = tk.Label(frame, text="", font=('TkDefaultFont', 14), fg="purple")
+        self.labelNumEpics.grid(row=0, column=0, padx=15)
+        self.labelNumFeatures.grid(row=0, column=1, padx=15)
 
         # Configure DropDown: Get Iterations and 'Current iteration' (depends on date)
         self.iteration_prefix = f"{stackrank_sorter.project}\\"
         iteration_paths = stackrank_sorter.get_iterations()
         if iteration_paths is None:
-            self.feedback.config(text=self.stackrank_sorter.resultText)
+            self.feedback.config(text=self.stackrank_sorter.result_text)
             self.feedback.update()
             iteration_paths = []
             current_iteration = ""
@@ -136,13 +141,17 @@ class IterationSelectorGui(tk.Tk):
         self.feedback.update()
         selected_iteration_path = self.get_selected_iteration_path()
         self.stackrank_sorter.sort_backlog(selected_iteration_path, self.dryRun)
+       
+        self.labelNumEpics.config(text=f"{self.stackrank_sorter.result_num_epics} Epics")
+        self.labelNumFeatures.config(text=f"{self.stackrank_sorter.result_num_features} Features")
+        # Color
+        
 
-        epic_count_txt = f"Epics: {self.stackrank_sorter.result_num_epics}, Features: {self.stackrank_sorter.result_num_features}"
-        self.labelNumEpics.config(text=epic_count_txt)
         self.feedback.config(text=self.stackrank_sorter.result_text)
     
     def select_dropdown(self, choice):
         self.labelNumEpics.config(text="")
+        self.labelNumFeatures.config(text="")
         self.feedback.config(text="")
         return "break"
 
@@ -171,6 +180,8 @@ class StackRankSorter():
         # Get hierarchy as 'family tree' (includes grandparent's stack rank)
         work_item_ancestry_table = self.get_work_item_ancestrytable(iteration_path)
         if work_item_ancestry_table is None:
+            self.result_num_epics = 0
+            self.result_num_features = 0
             self.result_text = "Nothing to sort: Iteration contains no work items."
         else:
             sort_work_item_table(work_item_ancestry_table)
@@ -347,7 +358,7 @@ class StackRankSorter():
     @staticmethod
     def get_num_epics_features(work_item_ancestry_table):
         if work_item_ancestry_table is None:
-            return ["-", "-"]
+            return [0, 0]
         
         epics = [item.grandparent for item in work_item_ancestry_table]
         features = [item.parent for item in work_item_ancestry_table]
