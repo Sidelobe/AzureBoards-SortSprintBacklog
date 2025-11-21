@@ -12,6 +12,7 @@ import json
 import yaml
 from collections import namedtuple
 import tkinter as tk
+from tkinter import font
 from tkinter import ttk
 from tkinter import messagebox
 
@@ -80,16 +81,16 @@ def sort_work_item_table(work_item_ancestry_table):
         work_item_ancestry_table.reverse()
 
 class IterationSelectorGui(tk.Tk):
-    def __init__(self, stackrank_sorter, dryRun):
+    def __init__(self, stackrank_sorter, cmdLineDryRun):
         super().__init__()
         
-        self.stackrank_sorter = stackrank_sorter
-        self.dryRun = dryRun
-
         self.title("Choose Iteration Backlog to sort")
-        
-        self.feedback = tk.Label(self, text="")
-        
+
+        self.new_window = None
+        self.stackrank_sorter = stackrank_sorter
+        self.dryRun = tk.IntVar()
+        self.dryRun.set(cmdLineDryRun)
+
         # use a frame for the two labels
         frame = tk.Frame(self)
         frame.pack()
@@ -121,15 +122,20 @@ class IterationSelectorGui(tk.Tk):
             i = max(0, current_iteration_idx-5); # clamp to 0
             iteration_paths = iteration_paths[i:len(iteration_paths)]
 
-
         self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
         self.dropdown.bind('<<ComboboxSelected>>', self.select_dropdown)
         self.dropdown.pack(padx=5, pady=5, fill="x")
         self.dropdown.set(current_iteration)
+     
+        frameBottom = tk.Frame(self)
+        frameBottom.pack()
+        self.dryRunSelector = tk.Checkbutton(frameBottom, text="Dry Run", variable=self.dryRun, command=self.dryRunSelected)
+        self.sort_button = tk.Button(frameBottom, text="Sort Sprint Backlog", command=self.sort_selected_iteration)
+  
+        self.sort_button.grid(row=0, column=0, padx=15)
+        self.dryRunSelector.grid(row=0, column=1, padx=15)
 
-        self.sort_button = tk.Button(self, text="Sort Sprint Backlog", command=self.sort_selected_iteration)
-        self.sort_button.pack()
-        
+        self.feedback = tk.Label(self, text="")
         self.feedback.pack(padx=5, pady=5, fill="x")
 
         # Window size & position
@@ -147,7 +153,10 @@ class IterationSelectorGui(tk.Tk):
         self.feedback.config(text="Sorting...")
         self.feedback.update()
         selected_iteration_path = self.get_selected_iteration_path()
-        self.stackrank_sorter.sort_backlog(selected_iteration_path, self.dryRun)
+        self.stackrank_sorter.sort_backlog(selected_iteration_path, self.dryRun.get())
+        if self.dryRun.get():
+            self.print_in_new_window(self.stackrank_sorter.result_dryRun)
+            print(self.stackrank_sorter.result_dryRun) # print to console, too
        
         self.labelNumEpics.config(text=f"{self.stackrank_sorter.result_num_epics} Epics")
         self.labelNumFeatures.config(text=f"{self.stackrank_sorter.result_num_features} Features")
@@ -157,11 +166,34 @@ class IterationSelectorGui(tk.Tk):
         self.labelNumEpics.config(text="")
         self.labelNumFeatures.config(text="")
         self.feedback.config(text="")
+        if self.new_window:
+            self.new_window.destroy()
         return "break"
 
     def get_selected_iteration_path(self):
         selected_iteration = self.dropdown.get()
         return f"{self.iteration_prefix}{selected_iteration}"
+    
+    def dryRunSelected(self):
+        if not self.dryRun.get() and self.new_window:
+            self.new_window.destroy()
+    
+    def print_in_new_window(self, text_to_display):
+        if self.new_window is not None:
+            self.new_window.destroy()
+        if not text_to_display:
+            return
+
+        self.new_window = tk.Toplevel(self)
+        self.new_window.title("Dry Run")
+        self.new_window.geometry("1000x600")
+
+        fixed_font = font.Font(family="TkFixedFont")
+        self.new_window.text = tk.Text(self.new_window, font="TkFixedFont", wrap=tk.NONE, 
+                       bg="black", fg="white")
+        self.new_window.text.insert(index=tk.END, chars=text_to_display)
+
+        self.new_window.text.pack(padx=5, pady=5, expand=True, fill='both')
 
 class StackRankSorter():
     def __init__(self, config):
@@ -175,11 +207,13 @@ class StackRankSorter():
         self.result_text = "" # to give feedback to user
         self.result_num_epics = None
         self.result_num_features = None
+        self.result_dryRun = ""
 
     def sort_backlog(self, iteration_path, dryRun=False):
         self.result_text = ""
         self.result_num_epics = 0
         self.result_num_features = 0
+        self.result_dryRun = ""
 
         # Get hierarchy as 'family tree' (includes grandparent's stack rank)
         work_item_ancestry_table = self.get_work_item_ancestrytable(iteration_path)
@@ -190,19 +224,19 @@ class StackRankSorter():
 
             # DryRun: Pretty-print results instead of applying order
             if dryRun:
-                StackRankSorter.pretty_print_table(work_item_ancestry_table)
-                return
-            
-            # Update Stack Rank to match new order
-            work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
-            self.update_stack_rank(work_item_ids_ordered)
+                self.result_dryRun = StackRankSorter.pretty_print_table(work_item_ancestry_table)
 
-            # Gather number of Epics and Features in Iteration
-            num_epics_features = StackRankSorter.get_num_epics_features(work_item_ancestry_table)
-            self.result_num_epics = num_epics_features[0]
-            self.result_num_features = num_epics_features[1]
+            else:
+                # Update Stack Rank to match new order
+                work_item_ids_ordered = [item.item_id for item in work_item_ancestry_table]
+                self.update_stack_rank(work_item_ids_ordered)
 
-            self.result_text = "Backlog items reordered successfully."
+                self.result_text = "Backlog items reordered successfully."
+
+        # Gather number of Epics and Features in Iteration
+        num_epics_features = StackRankSorter.get_num_epics_features(work_item_ancestry_table)
+        self.result_num_epics = num_epics_features[0]
+        self.result_num_features = num_epics_features[1]
 
     def get_iterations(self, getCurrentIterationOnly=False):
         """
@@ -418,7 +452,7 @@ class StackRankSorter():
 
             out += "\n"
             
-        print(out)
+        return out
 
 def check_config(config):
     class ErrorBox(tk.Tk):
