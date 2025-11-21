@@ -46,6 +46,9 @@ def main():
     # Sorter
     stackrank_sorter = StackRankSorter(config)
 
+    # DEBUG
+    # args.dryrun = True
+
     # Start GUI
     iteration_selector = IterationSelectorGui(stackrank_sorter, args.dryrun)
 
@@ -98,7 +101,11 @@ class IterationSelectorGui(tk.Tk):
             current_iteration = ""
         else:
             iteration_paths = [item.removeprefix(self.iteration_prefix) for item in iteration_paths]
-            current_iteration = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)[0]
+            iterations = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)
+            if iterations is None:
+                current_iteration = ""
+            else:
+                current_iteration = iterations[0]
             current_iteration = current_iteration.removeprefix(self.iteration_prefix)
 
         self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
@@ -181,6 +188,10 @@ class StackRankSorter():
             url += f"&$timeframe=current"
         
         response = requests.get(url, headers=headers_query)
+        if response.status_code is not 200:
+            self.resultText = f"Connection problem - returned {response.status_code} ({response.reason})" 
+            return None
+
         response_json = response.json()
         if response_json['count'] == 0:
             self.resultText = "No iterations found"
