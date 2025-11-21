@@ -383,8 +383,8 @@ class StackRankSorter():
                 epics_section_started = True
 
             out += "\t" + str(i)
-            out += "\t" + f"{item.item_type:<15}"
-            out += "\t" + f"{item.item_title:<65}"
+            out += "\t" + f"{item.item_type[:15]:<15}"
+            out += "\t" + f"{item.item_title[:65]:<65}"
 
             if item.grandparent_title is not None: 
                 out += "\t"
@@ -400,7 +400,7 @@ class StackRankSorter():
                 elif i < len(work_item_ancestry_table)-1:  
                     out += "└ "
 
-                out += f"{item.grandparent_title:<65}"
+                out += f"{item.grandparent_title[:65]:<65}"
 
             out += "\n"
             
