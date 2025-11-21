@@ -111,9 +111,16 @@ class IterationSelectorGui(tk.Tk):
             iterations = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)
             if iterations is None:
                 current_iteration = ""
+                current_iteration_idx = 0
             else:
                 current_iteration = iterations[0]
-            current_iteration = current_iteration.removeprefix(self.iteration_prefix)
+                current_iteration = current_iteration.removeprefix(self.iteration_prefix)
+                current_iteration_idx = iteration_paths.index(current_iteration)
+
+            # Restrict to 5 iterations before current iteration
+            i = max(0, current_iteration_idx-5); # clamp to 0
+            iteration_paths = iteration_paths[i:len(iteration_paths)]
+
 
         self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
         self.dropdown.bind('<<ComboboxSelected>>', self.select_dropdown)
