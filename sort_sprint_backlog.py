@@ -94,7 +94,6 @@ class IterationSelectorGui(tk.Tk):
         self.iteration_prefix = f"{stackrank_sorter.project}\\"
         iteration_paths = stackrank_sorter.get_iterations()
         if iteration_paths is None:
-            self.resultText = "Nothing to sort: Iteration contains no work items."
             self.feedback.config(text=self.stackrank_sorter.resultText)
             self.feedback.update()
             iteration_paths = []
