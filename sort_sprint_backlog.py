@@ -187,7 +187,7 @@ class StackRankSorter():
             url += f"&$timeframe=current"
         
         response = requests.get(url, headers=headers_query)
-        if response.status_code is not 200:
+        if response.status_code != 200:
             self.resultText = f"Connection problem - returned {response.status_code} ({response.reason})" 
             return None
 
