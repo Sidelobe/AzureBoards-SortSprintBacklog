@@ -399,18 +399,21 @@ class StackRankSorter():
 
             if item.grandparent_title is not None: 
                 out += "\t"
-                if i > 1 and i < len(work_item_ancestry_table)-2:
+                
+                previous_epic = ""
+                if i > 0:
                     previous_epic = work_item_ancestry_table[i-1].grandparent_title
+                next_epic = ""
+                if i < len(work_item_ancestry_table)-1:
                     next_epic = work_item_ancestry_table[i+1].grandparent_title
-                    if item.grandparent_title != previous_epic:
-                        out += "┌ " 
-                    elif item.grandparent_title != next_epic:
-                        out += "└ " 
-                    else:
-                        out += "│ "
-                elif i < len(work_item_ancestry_table)-1:  
-                    out += "└ "
-
+                
+                if item.grandparent_title != previous_epic:
+                    out += "┌ " 
+                elif item.grandparent_title != next_epic:
+                    out += "└ " 
+                else:
+                    out += "│ "
+                
                 out += f"{item.grandparent_title[:65]:<65}"
 
             out += "\n"
