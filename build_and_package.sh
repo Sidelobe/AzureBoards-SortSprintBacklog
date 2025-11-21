@@ -12,7 +12,7 @@ rm "dist/Azure Backlog Sorter.dmg" # remove existing/previous DMG
 cp -r "dist/${app_filename}" dist/dmg
 
 create-dmg \
-  --volname "${app_name}r" \
+  --volname "${app_name}" \
   --volicon "" \
   --window-pos 200 120 \
   --window-size 600 300 \
