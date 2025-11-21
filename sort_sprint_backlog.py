@@ -151,9 +151,6 @@ class IterationSelectorGui(tk.Tk):
        
         self.labelNumEpics.config(text=f"{self.stackrank_sorter.result_num_epics} Epics")
         self.labelNumFeatures.config(text=f"{self.stackrank_sorter.result_num_features} Features")
-        # Color
-        
-
         self.feedback.config(text=self.stackrank_sorter.result_text)
     
     def select_dropdown(self, choice):
@@ -180,15 +177,13 @@ class StackRankSorter():
         self.result_num_features = None
 
     def sort_backlog(self, iteration_path, dryRun=False):
-        self.result_text = None
-        self.result_num_epics = None
-        self.result_num_features = None
+        self.result_text = ""
+        self.result_num_epics = 0
+        self.result_num_features = 0
 
         # Get hierarchy as 'family tree' (includes grandparent's stack rank)
         work_item_ancestry_table = self.get_work_item_ancestrytable(iteration_path)
         if work_item_ancestry_table is None:
-            self.result_num_epics = 0
-            self.result_num_features = 0
             self.result_text = "Nothing to sort: Iteration contains no work items."
         else:
             sort_work_item_table(work_item_ancestry_table)
@@ -253,15 +248,24 @@ class StackRankSorter():
 
         # Step 1: Get work items in the sprint
         # https://learn.microsoft.com/en-us/azure/devops/boards/queries/wiql-syntax?view=azure-devops
+        #
+        # NOTE: we avoid having to explcitly specifying "Requirement" or "User Story" or any custom work items by
+        #       working via elimination instead.
+        #
         query_url = f"https://dev.azure.com/{self.organization}/{self.project}/_apis/wit/wiql?api-version=7.0"
         query = {
             "query": f"""
             SELECT [System.Id]
             FROM WorkItems
-            WHERE [System.IterationPath] = '{iteration_path}'
+            WHERE [System.IterationPath] = '{iteration_path}' 
+                AND [System.WorkItemType] != 'Task' 
+                AND [System.WorkItemType] != 'Feature'
+                AND [System.WorkItemType] != 'Epic'
             """
         }
         response = requests.post(query_url, json=query, headers=headers_query)
+        if response.status_code != 200:
+            return None
         work_item_ids = [item["id"] for item in response.json()["workItems"]]
 
         if not work_item_ids: 
