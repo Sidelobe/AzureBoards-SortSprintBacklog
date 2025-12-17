@@ -20,10 +20,16 @@ create-dmg \
   --icon "${app_filename}" 175 120 \
   --hide-extension "${app_filename}" \
   --app-drop-link 425 120 \
-   --no-internet-enable \
+  --no-internet-enable \
   "dist/${app_name}.dmg" \
   "dist/dmg/"
 
 
-  codesign -s ${identity} "dist/${app_name}.dmg"
-  
+
+# TODO: sign and notarize
+
+# Best to update 'codesign_identity' in .spec file; this recursively signs all executables in the .app, including e.g. Python
+
+# NOTE: consider using create-dmg's --codesign and --notarize options
+
+codesign --verify "dist/${app_name}.dmg"
