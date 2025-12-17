@@ -20,6 +20,7 @@ create-dmg \
   --icon "${app_filename}" 175 120 \
   --hide-extension "${app_filename}" \
   --app-drop-link 425 120 \
+   --no-internet-enable \
   "dist/${app_name}.dmg" \
   "dist/dmg/"
 
