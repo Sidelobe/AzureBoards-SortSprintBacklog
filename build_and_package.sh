@@ -9,7 +9,7 @@ app_filename="${app_name}.app"
 mkdir -p dist/dmg
 rm -rf dist/dmg/** # clean dir
 rm "dist/Azure Backlog Sorter.dmg" # remove existing/previous DMG
-cp -r "dist/${app_filename}" dist/dmg
+cp -R "dist/${app_filename}" dist/dmg
 
 create-dmg \
   --volname "${app_name}" \
