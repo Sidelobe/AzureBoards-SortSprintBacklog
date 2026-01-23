@@ -6,9 +6,8 @@ Python 3.x GUI App to allow to sort the Azure Sprint Backlog based on some crite
 import sys # for sys.exit
 import os
 import argparse
-import shutil
-from pathlib import Path
 import yaml
+import shutil
 
 import tkinter as tk
 from tkinter import font
@@ -16,37 +15,30 @@ from tkinter import ttk
 from tkinter import messagebox
 
 from sort_sprint_backlog import StackRankSorter
-
-APP_NAME = "Azure Backlog Sorter"
-
-def get_user_config_path():
-    base = Path.home() / "Library" / "Application Support" / APP_NAME
-    base.mkdir(parents=True, exist_ok=True)
-    return base / "config.yml"
+import app_cfg
 
 def main():
-    if getattr(sys, 'frozen', False):
-        # If the application is run as a bundle, the PyInstaller bootloader
-        # extends the sys module by a flag frozen=True and sets the app 
-        # path into variable _MEIPASS'.
-        application_path = sys._MEIPASS
-    else:
-        application_path = os.path.dirname(os.path.abspath(__file__))
-
-
     parser = argparse.ArgumentParser(prog=None)
     parser.add_argument('--config', help='Configuration file that contains credentials and paths to access Azure Boards')
     parser.add_argument('--dryrun', action='store_true', help='Prints resulting order only, without making any modifications')
     args = parser.parse_args()
 
     if not args.config:
+        if getattr(sys, 'frozen', False):
+            # If the application is run as a bundle, the PyInstaller bootloader
+            # extends the sys module by a flag frozen=True and sets the app 
+            # path into variable _MEIPASS'.
+            application_path = sys._MEIPASS
+        else:
+            application_path = os.path.dirname(os.path.abspath(__file__))
+        
         print("No config file specified, trying default [config.yml]")
-        print("(Application path is ", application_path, " looking for config file in directory ", get_user_config_path())
-
-        user_config = get_user_config_path()
+        print("(Application path is ", application_path, " looking for config file in directory ", app_cfg.get_user_config_path())
+        
+        user_config = app_cfg.get_user_config_path()
         if not user_config.exists():
             shutil.copy(f"{application_path}/config.yml", user_config)
-
+        
         args.config = user_config
 
     if args.dryrun:
@@ -55,7 +47,7 @@ def main():
     with open(args.config, 'r') as file:
         config = yaml.safe_load(file)
 
-    check_config(config)
+    app_cfg.check_config(config)
 
     # Sorter
     stackrank_sorter = StackRankSorter(config)
@@ -71,6 +63,13 @@ class IterationSelectorGui(tk.Tk):
         super().__init__()
         
         self.title("Choose Iteration Backlog to sort")
+
+        # macOS application menu
+        menubar = tk.Menu(self)
+        app_menu = tk.Menu(menubar, name="apple")  # <-- important!
+        app_menu.add_command(label="Configuration", command=app_cfg.open_config_window)
+        menubar.add_cascade(menu=app_menu)
+        self.config(menu=menubar)
 
         self.new_window = None
         self.stackrank_sorter = stackrank_sorter
@@ -181,36 +180,6 @@ class IterationSelectorGui(tk.Tk):
         self.new_window.text.insert(index=tk.END, chars=text_to_display)
 
         self.new_window.text.pack(padx=5, pady=5, expand=True, fill='both')
-
-def check_config(config):
-    class ErrorBox(tk.Tk):
-        def __init__(self):
-            super().__init__()
-
-        def showError(self, title, msg):
-            tk.messagebox.showerror(title, msg)
-            self.update()
-
-    error_msgs = ""
-    if not config['organization']:
-        error_msgs += "'organization', "
-    if not config['project']:
-        error_msgs += "'project', "  
-    if not config['team']:
-        error_msgs += "'team', "
-    if not config['pat']:
-        error_msgs += "'pat', "
-    if not config['field_priority']:
-        error_msgs += "'field_priority', "
-    if not config['field_stackrank']:
-        error_msgs += "'field_stackrank', "
-
-    if error_msgs: 
-        error_msgs = error_msgs.removesuffix(", ")
-        errorBox = ErrorBox()
-        errorBox.showError("Config Error", f"The values [{error_msgs}] have not been specified in the config file!")
-        errorBox.quit()
-        sys.exit(0)
 
 if __name__ == "__main__":
     main()
