@@ -70,17 +70,14 @@ def sort_work_item_table(work_item_ancestry_table):
         #          - then parent Feature priority
         #          - then work item's priority  TODO: consider using item's stack rank instead
 
-        work_item_ancestry_table.sort(key=lambda x: (x.item_type == 'Issue', 
-                                                    x.item_type == 'Disruption', 
-                                                    x.item_type == 'Bug', 
-                                                    x.item_type == 'Planning Item' and x.grandparent_stackrank is not None and x.grandparent_stackrank, 
-                                                    x.grandparent_stackrank is not None and x.grandparent_stackrank,
-                                                    x.parent_prio is not None and x.parent_prio,
-                                                    x.item_prio is not None and x.item_prio),
+        work_item_ancestry_table.sort(key=lambda x: (x.item_type != 'Issue',  # NOTE: use != achieve desired result
+                                                    x.item_type != 'Disruption', 
+                                                    x.item_type != 'Bug', 
+                                                    x.item_type != 'Planning Item' and x.grandparent_stackrank is not None and int(x.grandparent_stackrank), 
+                                                    x.grandparent_stackrank is not None and int(x.grandparent_stackrank),
+                                                    x.parent_prio is not None and int(x.parent_prio),
+                                                    x.item_prio is not None and int(x.item_prio)),
                                     reverse=False)
-
-        # for some reason, we need to reverse separately at the end, not in initial sort
-        work_item_ancestry_table.reverse()
 
 class IterationSelectorGui(tk.Tk):
     def __init__(self, stackrank_sorter, cmdLineDryRun):
