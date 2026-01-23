@@ -30,7 +30,7 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     codesign_identity=None,
-    target_arch=universal2,
+    target_arch=arm64,
     entitlements_file=None,
     icon=['AzureBacklogSorter.icns'],
 )
