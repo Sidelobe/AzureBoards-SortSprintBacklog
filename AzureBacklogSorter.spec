@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['sort_sprint_backlog.py'],
+    ['sort_sprint_backlog.py', 'app_gui.py'],
     pathex=[],
     binaries=[],
     datas=[ ('config.yml', '.') ],
