@@ -20,7 +20,7 @@ def load_config():
     with open(cfg_path, "r") as f:
         return yaml.safe_load(f)
 
-def save_config(entries, win):
+def save_config(entries, win, root):
     cfg_path = get_user_config_path()
     cfg = load_config()
 
@@ -30,9 +30,10 @@ def save_config(entries, win):
     with open(cfg_path, "w") as f:
         yaml.safe_dump(cfg, f)
 
+    root.rebuild_dropdown(cfg)
     win.destroy()
 
-def open_config_window():
+def open_config_window(root):
     cfg = load_config()
 
     win = tk.Toplevel()
@@ -55,18 +56,10 @@ def open_config_window():
         entries[key] = entry
         row += 1
 
-    save_btn = tk.Button(win, text="Save", command=lambda: save_config(entries, win))
+    save_btn = tk.Button(win, text="Save", command=lambda: save_config(entries, win, root))
     save_btn.grid(row=row, column=0, columnspan=2, pady=15)
 
 def check_config(config):
-    class ErrorBox(tk.Tk):
-        def __init__(self):
-            super().__init__()
-
-        def showError(self, title, msg):
-            tk.messagebox.showerror(title, msg)
-            self.update()
-
     error_msgs = ""
     if not config['organization']:
         error_msgs += "'organization', "
@@ -74,16 +67,13 @@ def check_config(config):
         error_msgs += "'project', "  
     if not config['team']:
         error_msgs += "'team', "
-    if not config['pat']:
+    if not config['pat'] or len(config['pat']) < 64:
         error_msgs += "'pat', "
     if not config['field_priority']:
         error_msgs += "'field_priority', "
     if not config['field_stackrank']:
         error_msgs += "'field_stackrank', "
 
-    if error_msgs: 
-        error_msgs = error_msgs.removesuffix(", ")
-        errorBox = ErrorBox()
-        errorBox.showError("Config Error", f"The values [{error_msgs}] have not been specified in the config file!")
-        errorBox.quit()
-        sys.exit(0)
+    error_msgs = error_msgs.removesuffix(", ")
+
+    return error_msgs

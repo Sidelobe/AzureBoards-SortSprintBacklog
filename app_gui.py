@@ -47,37 +47,29 @@ def main():
     with open(args.config, 'r') as file:
         config = yaml.safe_load(file)
 
-    app_cfg.check_config(config)
-
-    # Sorter
-    stackrank_sorter = StackRankSorter(config)
-
     # DEBUG
     # args.dryrun = True
 
     # Start GUI
-    iteration_selector = IterationSelectorGui(stackrank_sorter, args.dryrun)
+    iteration_selector = IterationSelectorGui(config, args.dryrun)
 
 class IterationSelectorGui(tk.Tk):
-    def __init__(self, stackrank_sorter, cmdLineDryRun):
+    def __init__(self, config, cmdLineDryRun):
         super().__init__()
-        
         self.title("Choose Iteration Backlog to sort")
+
+        self.new_window = None
+        self.dryRun = tk.IntVar()
+        self.dryRun.set(cmdLineDryRun)
+        self.feedback = tk.Label(self, text="")
 
         # macOS application menu
         menubar = tk.Menu(self)
         app_menu = tk.Menu(menubar, name="apple")  # <-- important!
-        app_menu.add_command(label="Configuration", command=app_cfg.open_config_window)
+        app_menu.add_command(label="Configuration...", command=lambda: app_cfg.open_config_window(self))
         menubar.add_cascade(menu=app_menu)
         self.config(menu=menubar)
 
-        self.new_window = None
-        self.stackrank_sorter = stackrank_sorter
-        self.dryRun = tk.IntVar()
-        self.dryRun.set(cmdLineDryRun)
-
-        self.feedback = tk.Label(self, text="")
-        
         # use a frame for the two labels
         frame = tk.Frame(self)
         frame.pack()
@@ -86,39 +78,15 @@ class IterationSelectorGui(tk.Tk):
         self.labelNumEpics.grid(row=0, column=0, padx=15)
         self.labelNumFeatures.grid(row=0, column=1, padx=15)
 
-        # Configure DropDown: Get Iterations and 'Current iteration' (depends on date)
-        self.iteration_prefix = f"{stackrank_sorter.project}\\"
-        iteration_paths = stackrank_sorter.get_iterations()
-        if iteration_paths is None:
-            self.feedback.config(text=self.stackrank_sorter.result_text)
-            self.feedback.update()
-            iteration_paths = []
-            current_iteration = ""
-        else:
-            iteration_paths = [item.removeprefix(self.iteration_prefix) for item in iteration_paths]
-            iterations = stackrank_sorter.get_iterations(getCurrentIterationOnly=True)
-            if iterations is None:
-                current_iteration = ""
-                current_iteration_idx = 0
-            else:
-                current_iteration = iterations[0]
-                current_iteration = current_iteration.removeprefix(self.iteration_prefix)
-                current_iteration_idx = iteration_paths.index(current_iteration)
-
-            # Restrict to 5 iterations before current iteration
-            i = max(0, current_iteration_idx-5); # clamp to 0
-            iteration_paths = iteration_paths[i:len(iteration_paths)]
-
-        self.dropdown = ttk.Combobox(self, text='Iteration', values=iteration_paths)
+        self.dropdown = ttk.Combobox(self, text='Iteration')
         self.dropdown.bind('<<ComboboxSelected>>', self.select_dropdown)
         self.dropdown.pack(padx=5, pady=5, fill="x")
-        self.dropdown.set(current_iteration)
-     
+
         frameBottom = tk.Frame(self)
         frameBottom.pack()
         self.dryRunSelector = tk.Checkbutton(frameBottom, text="Dry Run", variable=self.dryRun, command=self.dryRunSelected)
         self.sort_button = tk.Button(frameBottom, text="Sort Sprint Backlog", command=self.sort_selected_iteration)
-  
+
         self.sort_button.grid(row=0, column=0, padx=15)
         self.dryRunSelector.grid(row=0, column=1, padx=15)
 
@@ -131,9 +99,53 @@ class IterationSelectorGui(tk.Tk):
         hs = self.winfo_screenheight()
         x = (ws/2) - (w/2)
         y = (hs/2) - (h/2)
-        self.geometry('%dx%d+%d+%d' % (w, h, x, y))
-        
+        self.geometry('%dx%d+%d+%d' % (w, h, x, y))   
+
+        self.rebuild_dropdown(config)
+
         self.tk.mainloop()
+
+    def rebuild_dropdown(self, config):
+
+        self.stackrank_sorter = StackRankSorter(config)
+
+        # Check if config is complete and valid
+        config_valid = True
+        error_msgs = app_cfg.check_config(config)
+        if error_msgs:
+            config_valid = False
+            tk.messagebox.showerror("Config Error", f"The values [{error_msgs}] have not been specified in the config file. Open the config window and add them...")
+
+        iteration_paths = None
+        if config_valid:
+            # Configure DropDown: Get Iterations and 'Current iteration' (depends on date)
+            self.iteration_prefix = f"{self.stackrank_sorter.project}\\"
+            iteration_paths = self.stackrank_sorter.get_iterations()
+        if iteration_paths is None:
+            self.feedback.config(text=self.stackrank_sorter.result_text)
+            self.feedback.update()
+            iteration_paths = []
+            current_iteration = ""
+        else:
+            iteration_paths = [item.removeprefix(self.iteration_prefix) for item in iteration_paths]
+            iterations = self.stackrank_sorter.get_iterations(getCurrentIterationOnly=True)
+            if iterations is None:
+                current_iteration = ""
+                current_iteration_idx = 0
+            else:
+                current_iteration = iterations[0]
+                current_iteration = current_iteration.removeprefix(self.iteration_prefix)
+                current_iteration_idx = iteration_paths.index(current_iteration)
+
+            # Restrict to 5 iterations before current iteration
+            i = max(0, current_iteration_idx-5); # clamp to 0
+            iteration_paths = iteration_paths[i:len(iteration_paths)]
+        
+        self.dropdown["values"] = iteration_paths
+        self.dropdown.set(current_iteration) 
+        self.feedback.config(text="")
+        self.labelNumEpics.config(text="")
+        self.labelNumFeatures.config(text="")
 
     def sort_selected_iteration(self):
         self.feedback.config(text="Sorting...")
