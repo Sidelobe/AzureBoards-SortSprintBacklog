@@ -40,6 +40,10 @@ def main():
             shutil.copy(f"{application_path}/config.yml", user_config)
         
         args.config = user_config
+    else:
+        if not os.path.exists(args.config):
+            print("Could not read specified config file")
+            sys.exit(-1)
 
     if args.dryrun:
         print("--dryrun specified!")
@@ -106,7 +110,10 @@ class IterationSelectorGui(tk.Tk):
         self.tk.mainloop()
 
     def rebuild_dropdown(self, config):
-
+        self.feedback.config(text="")
+        self.labelNumEpics.config(text="")
+        self.labelNumFeatures.config(text="")
+        
         self.stackrank_sorter = StackRankSorter(config)
 
         # Check if config is complete and valid
@@ -143,9 +150,6 @@ class IterationSelectorGui(tk.Tk):
         
         self.dropdown["values"] = iteration_paths
         self.dropdown.set(current_iteration) 
-        self.feedback.config(text="")
-        self.labelNumEpics.config(text="")
-        self.labelNumFeatures.config(text="")
 
     def sort_selected_iteration(self):
         self.feedback.config(text="Sorting...")
