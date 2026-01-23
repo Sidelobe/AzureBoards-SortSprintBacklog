@@ -62,14 +62,16 @@ def sort_work_item_table(work_item_ancestry_table):
         # --> This is for a customized CMMI process
         # Hierarchy: 
         # 1. Issues
-        # 2. Bugs
-        # 3. Planning Items - order of (grand)parent Epic's (if applicable) stack rank
-        # 4. Any other work items (Requirements, Activities):
+        # 2. 'Disruptions'
+        # 3. Bugs
+        # 4. 'Planning Items' - order of (grand)parent Epic's (if applicable) stack rank
+        # 5. Any other work items (Requirements, 'Activities'):
         #          - grandparent Epic's stack rank
         #          - then parent Feature priority
         #          - then work item's priority  TODO: consider using item's stack rank instead
 
         work_item_ancestry_table.sort(key=lambda x: (x.item_type == 'Issue', 
+                                                    x.item_type == 'Disruption', 
                                                     x.item_type == 'Bug', 
                                                     x.item_type == 'Planning Item' and x.grandparent_stackrank is not None and x.grandparent_stackrank, 
                                                     x.grandparent_stackrank is not None and x.grandparent_stackrank,
