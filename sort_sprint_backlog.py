@@ -91,6 +91,8 @@ class IterationSelectorGui(tk.Tk):
         self.dryRun = tk.IntVar()
         self.dryRun.set(cmdLineDryRun)
 
+        self.feedback = tk.Label(self, text="")
+        
         # use a frame for the two labels
         frame = tk.Frame(self)
         frame.pack()
@@ -135,7 +137,6 @@ class IterationSelectorGui(tk.Tk):
         self.sort_button.grid(row=0, column=0, padx=15)
         self.dryRunSelector.grid(row=0, column=1, padx=15)
 
-        self.feedback = tk.Label(self, text="")
         self.feedback.pack(padx=5, pady=5, fill="x")
 
         # Window size & position
