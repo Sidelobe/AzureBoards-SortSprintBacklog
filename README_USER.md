@@ -7,10 +7,9 @@ Hosted at: [https://github.com/Sidelobe/AzureBoards-SortSprintBacklog](https://g
 ## Information for End-Users
 
 ### Configuration
-The apo will not work out of the box. After installing via the `.dmg` , make sure to edit the `config.yml` file and add the corresponding configuration data so the app works with your Azure organization & project.	
+The app will not work out of the box. After installing via the `.dmg`, make sure to edit the `~/Library/Application Support/config.yml` file and add the corresponding configuration data so the app works with your Azure organization & project. This file will be created the first time the app started.
 
-- In Finder, right-click on the .app (usually installed into `/Appplications`) and select "Show Package Contents"
-- Go into `Contents/Resources` and edit `config.yml` with your favourite text editor
+- In Finder, select `Go->Go to folder` or `Cmd+Shift+G` and enter `~/Library/Application Support` and then edit `config.yml` with your favourite text editor
 - Fill out all fields according to your Azure Board settings and desired project.
 
 ### PAT - Personal Acccess Token

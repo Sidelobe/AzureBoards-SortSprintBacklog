@@ -6,6 +6,8 @@ Python 3.x script to sort the Azure Sprint Backlog based on some criteria
 import sys # for sys.exit
 import os
 import argparse
+import shutil
+from pathlib import Path
 import requests
 import base64
 import json
@@ -15,6 +17,14 @@ import tkinter as tk
 from tkinter import font
 from tkinter import ttk
 from tkinter import messagebox
+
+
+APP_NAME = "Azure Backlog Sorter"
+
+def get_user_config_path():
+    base = Path.home() / "Library" / "Application Support" / APP_NAME
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "config.yml"
 
 def main():
     if getattr(sys, 'frozen', False):
@@ -33,8 +43,13 @@ def main():
 
     if not args.config:
         print("No config file specified, trying default [config.yml]")
-        print("(Application path is ", application_path, " looking for config file in directory ../Resources)")
-        args.config = f"{application_path}/../Resources/config.yml"
+        print("(Application path is ", application_path, " looking for config file in directory ", get_user_config_path())
+
+        user_config = get_user_config_path()
+        if not user_config.exists():
+            shutil.copy(f"{application_path}/config.yml", user_config)
+
+        args.config = user_config
 
     if args.dryrun:
         print("--dryrun specified!")
