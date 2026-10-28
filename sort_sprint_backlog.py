@@ -3,6 +3,7 @@
 Python 3.x script to sort the Azure Sprint Backlog based on some criteria
 """
 
+import sys
 import requests
 import base64
 import json
