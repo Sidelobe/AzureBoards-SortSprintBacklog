@@ -9,6 +9,10 @@ import base64
 import json
 from collections import namedtuple
 
+# Maximum number of work items / operations the Azure DevOps batch APIs
+# ('workitemsbatch' and '$batch') accept in a single request.
+AZURE_BATCH_MAX_SIZE = 200
+
 def sort_work_item_table(work_item_ancestry_table):
         """
         Sort a work item table based on certain criteria. 
@@ -230,16 +234,16 @@ class StackRankSorter():
     def get_work_items_batch(self, ids, fields, headers):
         """
         Fetch details for many work items in as few requests as possible.
-        The Azure DevOps 'workitemsbatch' API accepts up to 200 ids per call,
-        so we chunk accordingly and concatenate the results.
+        The Azure DevOps 'workitemsbatch' API accepts up to AZURE_BATCH_MAX_SIZE ids
+        per call, so we chunk accordingly and concatenate the results.
         """
         if not ids:
             return []
 
         url = f"https://dev.azure.com/{self.organization}/_apis/wit/workitemsbatch?api-version=7.0"
         result = []
-        for start in range(0, len(ids), 200):
-            chunk = ids[start:start + 200]
+        for start in range(0, len(ids), AZURE_BATCH_MAX_SIZE):
+            chunk = ids[start:start + AZURE_BATCH_MAX_SIZE]
             body = {
                 "ids": chunk, 
                 "fields": fields, 
@@ -253,7 +257,7 @@ class StackRankSorter():
         """
         Update the stack rank of the give work items so they reflect the given order.
         Uses the Work Items '$batch' endpoint to apply all updates in as few
-        requests as possible (up to 200 operations per request).
+        requests as possible (up to AZURE_BATCH_MAX_SIZE operations per request).
         """
         headers_batch = {
             "Content-Type": "application/json",
@@ -278,9 +282,9 @@ class StackRankSorter():
                 "body": patch_data
             })
 
-        # The '$batch' endpoint accepts up to 200 sub-requests per call
-        for start in range(0, len(batch_requests), 200):
-            chunk = batch_requests[start:start + 200]
+        # The '$batch' endpoint accepts up to AZURE_BATCH_MAX_SIZE sub-requests per call
+        for start in range(0, len(batch_requests), AZURE_BATCH_MAX_SIZE):
+            chunk = batch_requests[start:start + AZURE_BATCH_MAX_SIZE]
             response = self.session.post(url, json=chunk, headers=headers_batch)
             if response.status_code != 200:
                 print(response.status_code)

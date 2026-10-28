@@ -46,7 +46,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Azure Backlog Sorter.app',
-    version='1.0.0',
+    version='1.1.0',
     icon='AzureBacklogSorter.icns',
     bundle_identifier=None,
 )
