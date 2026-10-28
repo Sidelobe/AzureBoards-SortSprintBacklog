@@ -251,15 +251,19 @@ class StackRankSorter():
 
     def update_stack_rank(self, work_item_ids_ordered):
         """
-        Update the stack rank of the give work items so they reflect the given order
+        Update the stack rank of the give work items so they reflect the given order.
+        Uses the Work Items '$batch' endpoint to apply all updates in as few
+        requests as possible (up to 200 operations per request).
         """
-        headers_patch = {
-            "Content-Type": "application/json-patch+json",
+        headers_batch = {
+            "Content-Type": "application/json",
             "Authorization": f"Basic {self.encoded_pat}"
         }
+        url = f"https://dev.azure.com/{self.organization}/_apis/wit/$batch?api-version=7.0"
 
+        # Build one PATCH sub-request per work item
+        batch_requests = []
         for i, item_id in enumerate(work_item_ids_ordered):
-            update_url = f"https://dev.azure.com/{self.organization}/_apis/wit/workitems/{item_id}?api-version=7.0"
             patch_data = [
                 {
                     "op": "add",
@@ -267,11 +271,28 @@ class StackRankSorter():
                     "value": 10000 + i  # or any ranking logic
                 }
             ]
-            r = self.session.patch(update_url, json=patch_data, headers=headers_patch)
-            if r.status_code != 200:
-                print(r.status_code)
-                print(r.text)
+            batch_requests.append({
+                "method": "PATCH",
+                "uri": f"/_apis/wit/workitems/{item_id}?api-version=7.0",
+                "headers": {"Content-Type": "application/json-patch+json"},
+                "body": patch_data
+            })
+
+        # The '$batch' endpoint accepts up to 200 sub-requests per call
+        for start in range(0, len(batch_requests), 200):
+            chunk = batch_requests[start:start + 200]
+            response = self.session.post(url, json=chunk, headers=headers_batch)
+            if response.status_code != 200:
+                print(response.status_code)
+                print(response.text)
                 sys.exit(-1)
+
+            # Each sub-response carries its own status code, so check them individually
+            for sub_response in response.json().get('value', []):
+                if sub_response.get('code') not in (200, 201):
+                    print(sub_response.get('code'))
+                    print(sub_response.get('body'))
+                    sys.exit(-1)
 
     @staticmethod
     def get_num_epics_features(work_item_ancestry_table):
