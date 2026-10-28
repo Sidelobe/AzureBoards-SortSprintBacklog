@@ -43,7 +43,8 @@ class StackRankSorter():
         pat = config['pat']
         self.encoded_pat = base64.b64encode(f":{pat}".encode()).decode()
         self.priority_field = config['field_priority']
-        self.stackrank_field= config['field_stackrank']
+        self.stackrank_field = config['field_stackrank']        
+        self.session = requests.Session()  # Reuse a single HTTP connection (keep-alive) across all requests
         self.result_text = "" # to give feedback to user
         self.result_num_epics = None
         self.result_num_features = None
@@ -93,7 +94,7 @@ class StackRankSorter():
         if getCurrentIterationOnly:
             url += f"&$timeframe=current"
         
-        response = requests.get(url, headers=headers_query)
+        response = self.session.get(url, headers=headers_query)
         if response.status_code != 200:
             self.result_text = f"Connection problem - returned {response.status_code} ({response.reason})" 
             return None
@@ -137,7 +138,7 @@ class StackRankSorter():
                 AND [System.WorkItemType] != 'Epic'
             """
         }
-        response = requests.post(query_url, json=query, headers=headers_query)
+        response = self.session.post(query_url, json=query, headers=headers_query)
         if response.status_code != 200:
             return None
         work_item_ids = [item["id"] for item in response.json()["workItems"]]
@@ -145,21 +146,42 @@ class StackRankSorter():
         if not work_item_ids: 
             return None # Iteration contains no work items
         
-        # Step 2: Get details including parent links and stack rank
-        url = f"https://dev.azure.com/{self.organization}/_apis/wit/workitemsbatch?api-version=7.0"
-        details_query = {
-            "ids": work_item_ids,
-            "fields": ["System.Id", "System.WorkItemType", "System.Title", "System.Parent", f"{self.priority_field}"],
-            "expand": "Relations"
-        }
-        work_item_details = requests.post(url, json=details_query, headers=headers_query).json()
+        # Step 2: Get details including parent links and stack rank (single batched call)
+        work_items = self.get_work_items_batch(
+            work_item_ids,
+            ["System.Id", "System.WorkItemType", "System.Title", "System.Parent", self.priority_field],
+            headers_query)
+
+        # Step 3: Batch-fetch ALL parents at once (instead of one request per item)
+        parent_ids = {item['fields']['System.Parent']
+                          for item in work_items
+                             if 'System.Parent' in item['fields']}
+        parent_ids = sorted(parent_ids)
         
-        # Step 3: Get parents and grandparents
+        parents = self.get_work_items_batch(
+            parent_ids,
+            ["System.Id", "System.Title", "System.Parent", "System.IterationPath", self.priority_field],
+            headers_query)
+        parents_by_id = {p['id']: p for p in parents}
+
+        # Step 4: Batch-fetch ALL grandparents at once
+        grandparent_ids = {p['fields']['System.Parent']
+                              for p in parents
+                                 if 'System.Parent' in p['fields']}
+        grandparent_ids = sorted(grandparent_ids)
+        
+        grandparents = self.get_work_items_batch(
+            grandparent_ids,
+            ["System.Id", "System.Title", "System.IterationPath", self.stackrank_field],
+            headers_query)
+        grandparents_by_id = {g['id']: g for g in grandparents}
+
+        # Step 5: Build the ancestry table purely in-memory (no more network calls)
         fields = ('item_id', 'item_title', 'item_type', 'item_prio', 'parent', 'parent_prio', 'grandparent', 'grandparent_title', 'grandparent_stackrank')
         AncestryInfoTable = namedtuple('AncestryInfoTable', fields, defaults=(None,) * len(fields))
         work_item_ancestry_table = []
-        
-        for i, item in enumerate(work_item_details['value']):
+
+        for item in work_items:
             item_id = item['id']
             item_type = None
             if 'System.WorkItemType' in item['fields']:
@@ -178,43 +200,54 @@ class StackRankSorter():
                 continue # safely skip items without parent
 
             parent = item['fields']['System.Parent']
-            parent_query = {
-                "ids": [parent],
-                "fields": ["System.Id", "System.Title", "System.Parent", "System.IterationPath", self.priority_field],
-                "expand": "Relations"
-            }
-            item_parent_details = requests.post(url, json=parent_query, headers=headers_query).json()
-            item_parent = item_parent_details['value'][0] # only one parent queried
+            item_parent = parents_by_id.get(parent)
             parent_prio = None
-            if self.priority_field in item_parent['fields']:
+            if item_parent is not None and self.priority_field in item_parent['fields']:
                 parent_prio = item_parent['fields'][self.priority_field]
 
-            if 'System.Parent' not in item_parent['fields']:
+            if item_parent is None or 'System.Parent' not in item_parent['fields']:
                 work_item_ancestry_table.append(AncestryInfoTable(item_id=item_id, item_title=item_title, item_type=item_type, item_prio=item_prio, 
                                                                 parent=parent, parent_prio=parent_prio))
                 continue # safely skip items without parent
 
             grandparent = item_parent['fields']['System.Parent']
-            grandparent_query = {
-                "ids": [grandparent],
-                "fields": ["System.Id", "System.Title", "System.IterationPath", self.stackrank_field],
-                "expand": "Relations"
-            }
-            item_grandparent_details = requests.post(url, json=grandparent_query, headers=headers_query).json()
-            item_grandparent = item_grandparent_details['value'][0] # only one parent queried
+            item_grandparent = grandparents_by_id.get(grandparent)
 
             grandparent_title = ""
-            if 'System.Title' in item_grandparent['fields']:
-                grandparent_title = item_grandparent['fields']['System.Title']
             grandparent_stack_rank = None
-            if self.stackrank_field in item_grandparent['fields']:
-                grandparent_stack_rank = item_grandparent['fields'][self.stackrank_field]
-            
+            if item_grandparent is not None:
+                if 'System.Title' in item_grandparent['fields']:
+                    grandparent_title = item_grandparent['fields']['System.Title']
+                if self.stackrank_field in item_grandparent['fields']:
+                    grandparent_stack_rank = item_grandparent['fields'][self.stackrank_field]
+
             node = AncestryInfoTable(item_id=item_id, item_type=item_type, item_title=item_title, item_prio=item_prio, parent=parent, parent_prio=parent_prio, 
                                     grandparent=grandparent, grandparent_title=grandparent_title, grandparent_stackrank=grandparent_stack_rank)
             work_item_ancestry_table.append(node)
 
         return (work_item_ancestry_table)
+
+    def get_work_items_batch(self, ids, fields, headers):
+        """
+        Fetch details for many work items in as few requests as possible.
+        The Azure DevOps 'workitemsbatch' API accepts up to 200 ids per call,
+        so we chunk accordingly and concatenate the results.
+        """
+        if not ids:
+            return []
+
+        url = f"https://dev.azure.com/{self.organization}/_apis/wit/workitemsbatch?api-version=7.0"
+        result = []
+        for start in range(0, len(ids), 200):
+            chunk = ids[start:start + 200]
+            body = {
+                "ids": chunk, 
+                "fields": fields, 
+                "expand": "Relations"
+            }
+            response = self.session.post(url, json=body, headers=headers)
+            result.extend(response.json().get('value', []))
+        return result
 
     def update_stack_rank(self, work_item_ids_ordered):
         """
@@ -225,8 +258,8 @@ class StackRankSorter():
             "Authorization": f"Basic {self.encoded_pat}"
         }
 
-        for i, id in enumerate(work_item_ids_ordered):
-            update_url = f"https://dev.azure.com/{self.organization}/_apis/wit/workitems/{id}?api-version=7.0"
+        for i, item_id in enumerate(work_item_ids_ordered):
+            update_url = f"https://dev.azure.com/{self.organization}/_apis/wit/workitems/{item_id}?api-version=7.0"
             patch_data = [
                 {
                     "op": "add",
@@ -234,8 +267,8 @@ class StackRankSorter():
                     "value": 10000 + i  # or any ranking logic
                 }
             ]
-            r = requests.patch(update_url, json=patch_data, headers=headers_patch)
-            if (r.status_code != 200):
+            r = self.session.patch(update_url, json=patch_data, headers=headers_patch)
+            if r.status_code != 200:
                 print(r.status_code)
                 print(r.text)
                 sys.exit(-1)
